@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchTurkeyGeoJson } from "../api/client";
+import type { DemandFilters } from "../types/filters";
 
 type FilterMenu = "time" | "provinces" | "results" | null;
 type ProvinceOption = {
   name: string;
   number: number;
 };
+type ArrayFilterKey =
+  | "hourRanges"
+  | "weekdays"
+  | "provinceNumbers"
+  | "resultStates"
+  | "stepRanges"
+  | "sourceStates";
 
 const hourRanges = [
   "00-05",
@@ -22,14 +30,6 @@ const ratingThresholds = ["Any rating", "3.0+", "4.0+", "4.5+"];
 const stepRanges = ["1-3 steps", "4-6 steps", "7+ steps"];
 const sourceStates = ["Has sources", "No sources"];
 
-function toggleValue(value: string, selected: string[], onChange: (next: string[]) => void) {
-  onChange(
-    selected.includes(value)
-      ? selected.filter((item) => item !== value)
-      : [...selected, value],
-  );
-}
-
 function summaryLabel(values: string[], fallback: string) {
   if (!values.length) {
     return fallback;
@@ -42,18 +42,35 @@ function summaryLabel(values: string[], fallback: string) {
   return `${values.length} selected`;
 }
 
-export function FilterBar() {
+export function FilterBar({
+  filters,
+  onFiltersChange,
+}: {
+  filters: DemandFilters;
+  onFiltersChange: (filters: DemandFilters) => void;
+}) {
   const [openMenu, setOpenMenu] = useState<FilterMenu>(null);
-  const [selectedHours, setSelectedHours] = useState<string[]>([]);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
-  const [selectedResultStates, setSelectedResultStates] = useState<string[]>([]);
-  const [selectedRating, setSelectedRating] = useState("Any rating");
-  const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
-  const [selectedSourceStates, setSelectedSourceStates] = useState<string[]>([]);
   const [provinceSearch, setProvinceSearch] = useState("");
   const [provinces, setProvinces] = useState<ProvinceOption[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  function updateFilters(nextFilters: Partial<DemandFilters>) {
+    onFiltersChange({
+      ...filters,
+      ...nextFilters,
+    });
+  }
+
+  function toggleFilterValue(key: ArrayFilterKey, value: string | number) {
+    const selected = filters[key] as Array<string | number>;
+    const nextSelected = selected.includes(value)
+      ? selected.filter((item) => item !== value)
+      : [...selected, value];
+
+    updateFilters({
+      [key]: nextSelected,
+    } as Partial<DemandFilters>);
+  }
 
   useEffect(() => {
     void fetchTurkeyGeoJson().then((geoJson) => {
@@ -95,15 +112,19 @@ export function FilterBar() {
   }, [provinceSearch, provinces]);
 
   const timeSummary =
-    selectedHours.length + selectedDays.length > 0
-      ? `${selectedHours.length + selectedDays.length} selected`
+    filters.hourRanges.length + filters.weekdays.length > 0
+      ? `${filters.hourRanges.length + filters.weekdays.length} selected`
       : "Time";
 
   const resultSelectionCount =
-    selectedResultStates.length +
-    selectedSteps.length +
-    selectedSourceStates.length +
-    (selectedRating === "Any rating" ? 0 : 1);
+    filters.resultStates.length +
+    filters.stepRanges.length +
+    filters.sourceStates.length +
+    (filters.rating === "Any rating" ? 0 : 1);
+
+  const selectedProvinceNames = provinces
+    .filter((province) => filters.provinceNumbers.includes(province.number))
+    .map((province) => province.name);
 
   return (
     <div className="filter-bar" ref={containerRef}>
@@ -122,7 +143,7 @@ export function FilterBar() {
             <div className="filter-section">
               <div className="filter-section-header">
                 <span>Hours</span>
-                <button type="button" onClick={() => setSelectedHours([])}>
+                <button type="button" onClick={() => updateFilters({ hourRanges: [] })}>
                   Clear
                 </button>
               </div>
@@ -130,9 +151,9 @@ export function FilterBar() {
                 {hourRanges.map((hourRange) => (
                   <button
                     type="button"
-                    className={selectedHours.includes(hourRange) ? "chip active" : "chip"}
+                    className={filters.hourRanges.includes(hourRange) ? "chip active" : "chip"}
                     key={hourRange}
-                    onClick={() => toggleValue(hourRange, selectedHours, setSelectedHours)}
+                    onClick={() => toggleFilterValue("hourRanges", hourRange)}
                   >
                     {hourRange}
                   </button>
@@ -143,7 +164,7 @@ export function FilterBar() {
             <div className="filter-section">
               <div className="filter-section-header">
                 <span>Days</span>
-                <button type="button" onClick={() => setSelectedDays([])}>
+                <button type="button" onClick={() => updateFilters({ weekdays: [] })}>
                   Clear
                 </button>
               </div>
@@ -151,9 +172,9 @@ export function FilterBar() {
                 {weekdays.map((weekday) => (
                   <button
                     type="button"
-                    className={selectedDays.includes(weekday) ? "chip active" : "chip"}
+                    className={filters.weekdays.includes(weekday) ? "chip active" : "chip"}
                     key={weekday}
-                    onClick={() => toggleValue(weekday, selectedDays, setSelectedDays)}
+                    onClick={() => toggleFilterValue("weekdays", weekday)}
                   >
                     {weekday}
                   </button>
@@ -173,14 +194,14 @@ export function FilterBar() {
           aria-expanded={openMenu === "provinces"}
           onClick={() => setOpenMenu(openMenu === "provinces" ? null : "provinces")}
         >
-          {summaryLabel(selectedProvinces, "Provinces")}
+          {summaryLabel(selectedProvinceNames, "Provinces")}
         </button>
 
         {openMenu === "provinces" ? (
           <div className="filter-popover provinces-popover">
             <div className="filter-section-header">
               <span>Query province</span>
-              <button type="button" onClick={() => setSelectedProvinces([])}>
+              <button type="button" onClick={() => updateFilters({ provinceNumbers: [] })}>
                 Clear
               </button>
             </div>
@@ -194,11 +215,9 @@ export function FilterBar() {
               {filteredProvinces.map((province) => (
                 <label className="region-option" key={province.number}>
                   <input
-                    checked={selectedProvinces.includes(province.name)}
+                    checked={filters.provinceNumbers.includes(province.number)}
                     type="checkbox"
-                    onChange={() =>
-                      toggleValue(province.name, selectedProvinces, setSelectedProvinces)
-                    }
+                    onChange={() => toggleFilterValue("provinceNumbers", province.number)}
                   />
                   <span>{province.name}</span>
                 </label>
@@ -223,7 +242,7 @@ export function FilterBar() {
             <div className="filter-section">
               <div className="filter-section-header">
                 <span>Organizations</span>
-                <button type="button" onClick={() => setSelectedResultStates([])}>
+                <button type="button" onClick={() => updateFilters({ resultStates: [] })}>
                   Clear
                 </button>
               </div>
@@ -231,11 +250,9 @@ export function FilterBar() {
                 {resultStates.map((state) => (
                   <label className="region-option" key={state}>
                     <input
-                      checked={selectedResultStates.includes(state)}
+                      checked={filters.resultStates.includes(state)}
                       type="checkbox"
-                      onChange={() =>
-                        toggleValue(state, selectedResultStates, setSelectedResultStates)
-                      }
+                      onChange={() => toggleFilterValue("resultStates", state)}
                     />
                     <span>{state}</span>
                   </label>
@@ -251,9 +268,9 @@ export function FilterBar() {
                 {ratingThresholds.map((rating) => (
                   <button
                     type="button"
-                    className={selectedRating === rating ? "chip active" : "chip"}
+                    className={filters.rating === rating ? "chip active" : "chip"}
                     key={rating}
-                    onClick={() => setSelectedRating(rating)}
+                    onClick={() => updateFilters({ rating })}
                   >
                     {rating}
                   </button>
@@ -264,7 +281,7 @@ export function FilterBar() {
             <div className="filter-section">
               <div className="filter-section-header">
                 <span>Agent steps</span>
-                <button type="button" onClick={() => setSelectedSteps([])}>
+                <button type="button" onClick={() => updateFilters({ stepRanges: [] })}>
                   Clear
                 </button>
               </div>
@@ -272,9 +289,9 @@ export function FilterBar() {
                 {stepRanges.map((stepRange) => (
                   <button
                     type="button"
-                    className={selectedSteps.includes(stepRange) ? "chip active" : "chip"}
+                    className={filters.stepRanges.includes(stepRange) ? "chip active" : "chip"}
                     key={stepRange}
-                    onClick={() => toggleValue(stepRange, selectedSteps, setSelectedSteps)}
+                    onClick={() => toggleFilterValue("stepRanges", stepRange)}
                   >
                     {stepRange}
                   </button>
@@ -285,7 +302,7 @@ export function FilterBar() {
             <div className="filter-section">
               <div className="filter-section-header">
                 <span>Sources</span>
-                <button type="button" onClick={() => setSelectedSourceStates([])}>
+                <button type="button" onClick={() => updateFilters({ sourceStates: [] })}>
                   Clear
                 </button>
               </div>
@@ -293,11 +310,9 @@ export function FilterBar() {
                 {sourceStates.map((state) => (
                   <label className="region-option" key={state}>
                     <input
-                      checked={selectedSourceStates.includes(state)}
+                      checked={filters.sourceStates.includes(state)}
                       type="checkbox"
-                      onChange={() =>
-                        toggleValue(state, selectedSourceStates, setSelectedSourceStates)
-                      }
+                      onChange={() => toggleFilterValue("sourceStates", state)}
                     />
                     <span>{state}</span>
                   </label>

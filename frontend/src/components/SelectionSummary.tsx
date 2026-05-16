@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDemandOverview, fetchProvinceDemand } from "../api/client";
+import type { DemandFilters } from "../types/filters";
 import type {
   CategorySearchPoint,
   DailySearchPoint,
@@ -138,10 +139,12 @@ function formatDate(value: string | undefined) {
 }
 
 export function SelectionSummary({
+  filters,
   isExpanded,
   onExpandedChange,
   selection,
 }: {
+  filters: DemandFilters;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   selection: CoordinateMatch | null;
@@ -152,7 +155,7 @@ export function SelectionSummary({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetchDemandOverview()
+    void fetchDemandOverview(filters)
       .then((nextOverview) => {
         setOverview(nextOverview);
         setError(null);
@@ -160,7 +163,7 @@ export function SelectionSummary({
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : "Failed to load");
       });
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     if (!selection?.provinceNumber) {
@@ -168,7 +171,7 @@ export function SelectionSummary({
       return;
     }
 
-    void fetchProvinceDemand(selection.provinceNumber)
+    void fetchProvinceDemand(selection.provinceNumber, filters)
       .then((nextProvinceDemand) => {
         setProvinceDemand(nextProvinceDemand);
         setError(null);
@@ -177,7 +180,7 @@ export function SelectionSummary({
         setProvinceDemand(null);
         setError(loadError instanceof Error ? loadError.message : "Failed to load");
       });
-  }, [selection?.provinceNumber]);
+  }, [filters, selection?.provinceNumber]);
 
   const activeData = provinceDemand ?? overview;
   const summary = getSummary(activeData);

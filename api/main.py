@@ -9,6 +9,7 @@ from api.demand_data import get_metric_catalog
 from api.demand_data import get_overview
 from api.demand_data import get_province_detail
 from api.demand_data import get_region_values
+from api.demand_data import DemandFilters
 from api.demand_data import MetricName
 from api.settings import FRONTEND_DIST_DIR, GEOJSON_PATH
 
@@ -46,18 +47,72 @@ def metrics() -> dict:
 
 
 @app.get("/api/demand/region-values")
-def demand_region_values(metric: MetricName = "searches") -> dict:
-    return get_region_values(metric)
+def demand_region_values(
+    metric: MetricName = "searches",
+    hours: str | None = None,
+    weekdays: str | None = None,
+    provinces: str | None = None,
+    results: str | None = None,
+    rating: str | None = None,
+    steps: str | None = None,
+    sources: str | None = None,
+) -> dict:
+    filters: DemandFilters = {
+        "hours": hours,
+        "weekdays": weekdays,
+        "provinces": provinces,
+        "results": results,
+        "rating": rating,
+        "steps": steps,
+        "sources": sources,
+    }
+    return get_region_values(metric, filters)
 
 
 @app.get("/api/demand/overview")
-def demand_overview(metric: MetricName = "searches") -> dict:
-    return get_overview(metric)
+def demand_overview(
+    metric: MetricName = "searches",
+    hours: str | None = None,
+    weekdays: str | None = None,
+    provinces: str | None = None,
+    results: str | None = None,
+    rating: str | None = None,
+    steps: str | None = None,
+    sources: str | None = None,
+) -> dict:
+    filters: DemandFilters = {
+        "hours": hours,
+        "weekdays": weekdays,
+        "provinces": provinces,
+        "results": results,
+        "rating": rating,
+        "steps": steps,
+        "sources": sources,
+    }
+    return get_overview(metric, filters)
 
 
 @app.get("/api/demand/provinces/{province_number}")
-def demand_province_detail(province_number: int) -> dict:
-    detail = get_province_detail(province_number)
+def demand_province_detail(
+    province_number: int,
+    hours: str | None = None,
+    weekdays: str | None = None,
+    provinces: str | None = None,
+    results: str | None = None,
+    rating: str | None = None,
+    steps: str | None = None,
+    sources: str | None = None,
+) -> dict:
+    filters: DemandFilters = {
+        "hours": hours,
+        "weekdays": weekdays,
+        "provinces": provinces,
+        "results": results,
+        "rating": rating,
+        "steps": steps,
+        "sources": sources,
+    }
+    detail = get_province_detail(province_number, filters)
 
     if detail is None:
         raise HTTPException(status_code=404, detail="Province not found")

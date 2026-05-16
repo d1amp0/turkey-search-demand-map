@@ -11,6 +11,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import { fetchRegionValues, fetchTurkeyGeoJson } from "../api/client";
+import type { DemandFilters } from "../types/filters";
 import type {
   RegionValuesResponse,
   TurkeyProvinceProperties,
@@ -184,9 +185,11 @@ function CoordinatePicker({
 }
 
 export function TurkeyMap({
+  filters,
   theme,
   onSelectionChange,
 }: {
+  filters: DemandFilters;
   theme: Theme;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
 }) {
@@ -217,7 +220,7 @@ export function TurkeyMap({
     try {
       const [nextGeoJson, nextRegionData] = await Promise.all([
         fetchTurkeyGeoJson(),
-        fetchRegionValues(),
+        fetchRegionValues(filters),
       ]);
 
       setGeoJson(nextGeoJson);
@@ -225,7 +228,7 @@ export function TurkeyMap({
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load map");
     }
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     void loadData();

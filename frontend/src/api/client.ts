@@ -5,6 +5,7 @@ import type {
   RegionValuesResponse,
   TurkeyProvinceProperties,
 } from "../types/region";
+import type { DemandFilters } from "../types/filters";
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { cache: "no-store" });
@@ -27,16 +28,58 @@ export function fetchTurkeyGeoJson() {
   );
 }
 
-export function fetchRegionValues() {
-  return getJson<RegionValuesResponse>("/api/demand/region-values");
+function demandQuery(filters: DemandFilters) {
+  const params = new URLSearchParams();
+
+  if (filters.hourRanges.length) {
+    params.set("hours", filters.hourRanges.join(","));
+  }
+
+  if (filters.weekdays.length) {
+    params.set("weekdays", filters.weekdays.join(","));
+  }
+
+  if (filters.provinceNumbers.length) {
+    params.set("provinces", filters.provinceNumbers.join(","));
+  }
+
+  if (filters.resultStates.length) {
+    params.set("results", filters.resultStates.join(","));
+  }
+
+  if (filters.rating !== "Any rating") {
+    params.set("rating", filters.rating);
+  }
+
+  if (filters.stepRanges.length) {
+    params.set("steps", filters.stepRanges.join(","));
+  }
+
+  if (filters.sourceStates.length) {
+    params.set("sources", filters.sourceStates.join(","));
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
-export function fetchDemandOverview() {
-  return getJson<DemandOverviewResponse>("/api/demand/overview");
+export function fetchRegionValues(filters: DemandFilters) {
+  return getJson<RegionValuesResponse>(
+    `/api/demand/region-values${demandQuery(filters)}`,
+  );
 }
 
-export function fetchProvinceDemand(provinceNumber: number) {
+export function fetchDemandOverview(filters: DemandFilters) {
+  return getJson<DemandOverviewResponse>(
+    `/api/demand/overview${demandQuery(filters)}`,
+  );
+}
+
+export function fetchProvinceDemand(
+  provinceNumber: number,
+  filters: DemandFilters,
+) {
   return getJson<ProvinceDemandResponse>(
-    `/api/demand/provinces/${provinceNumber}`,
+    `/api/demand/provinces/${provinceNumber}${demandQuery(filters)}`,
   );
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import pandas as pd
 
@@ -47,6 +47,16 @@ METRICS: dict[MetricName, dict[str, str]] = {
 }
 
 CATEGORIES = ("restaurants", "hotels", "clinics", "transport", "shops")
+
+
+class DemandFilters(TypedDict, total=False):
+    hours: str | None
+    weekdays: str | None
+    provinces: str | None
+    results: str | None
+    rating: str | None
+    steps: str | None
+    sources: str | None
 
 
 def _stable_int(*parts: object) -> int:
@@ -127,6 +137,102 @@ def _metric_value(summary: dict[str, float | int], metric: MetricName) -> float 
     return summary[metric]
 
 
+def _split_filter(value: str | None) -> list[str]:
+    if not value:
+        return []
+
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _hours_from_ranges(ranges: list[str]) -> set[int]:
+    hours: set[int] = set()
+
+    for hour_range in ranges:
+        if "-" not in hour_range:
+            continue
+
+        start_text, end_text = hour_range.split("-", 1)
+        start_hour = int(start_text)
+        end_hour = int(end_text)
+        hours.update(range(start_hour, end_hour + 1))
+
+    return hours
+
+
+def _step_mask(frame: pd.DataFrame, ranges: list[str]) -> pd.Series:
+    mask = pd.Series(False, index=frame.index)
+
+    for step_range in ranges:
+        if step_range.endswith("+"):
+            mask = mask | (frame["avg_steps"] >= float(step_range.rstrip("+")))
+            continue
+
+        if "-" not in step_range:
+            continue
+
+        start_text, end_text = step_range.replace(" steps", "").split("-", 1)
+        mask = mask | frame["avg_steps"].between(float(start_text), float(end_text))
+
+    return mask
+
+
+def apply_demand_filters(
+    frame: pd.DataFrame,
+    filters: DemandFilters | None = None,
+) -> pd.DataFrame:
+    if not filters:
+        return frame.copy()
+
+    filtered = frame.copy()
+    hour_ranges = _split_filter(filters.get("hours"))
+    weekdays = _split_filter(filters.get("weekdays"))
+    provinces = _split_filter(filters.get("provinces"))
+    result_states = _split_filter(filters.get("results"))
+    step_ranges = _split_filter(filters.get("steps"))
+    source_states = _split_filter(filters.get("sources"))
+    rating = filters.get("rating")
+
+    if hour_ranges:
+        filtered = filtered[filtered["hour"].isin(_hours_from_ranges(hour_ranges))]
+
+    if weekdays:
+        filtered = filtered[filtered["weekday"].isin(weekdays)]
+
+    if provinces:
+        province_numbers = {int(province) for province in provinces}
+        filtered = filtered[filtered["province_number"].isin(province_numbers)]
+
+    if rating and rating != "Any rating":
+        filtered = filtered[filtered["avg_rating"] >= float(rating.rstrip("+"))]
+
+    if step_ranges:
+        filtered = filtered[_step_mask(filtered, step_ranges)]
+
+    if not filtered.empty and result_states and len(result_states) == 1:
+        filtered = filtered.copy()
+
+        if result_states[0] == "No organizations":
+            filtered["searches"] = filtered["no_result_count"]
+            filtered["source_count"] = 0
+        elif result_states[0] == "Organizations found":
+            filtered["searches"] = filtered["searches"] - filtered["no_result_count"]
+            filtered["no_result_count"] = 0
+            filtered["source_count"] = filtered[["source_count", "searches"]].min(axis=1)
+
+    if not filtered.empty and source_states and len(source_states) == 1:
+        filtered = filtered.copy()
+
+        if source_states[0] == "Has sources":
+            filtered["searches"] = filtered["source_count"]
+            filtered["no_result_count"] = filtered[["no_result_count", "searches"]].min(axis=1)
+        elif source_states[0] == "No sources":
+            filtered["searches"] = filtered["searches"] - filtered["source_count"]
+            filtered["source_count"] = 0
+            filtered["no_result_count"] = filtered[["no_result_count", "searches"]].min(axis=1)
+
+    return filtered[filtered["searches"] > 0]
+
+
 def get_metric_catalog() -> dict[str, Any]:
     return {
         "default_metric": "searches",
@@ -137,8 +243,11 @@ def get_metric_catalog() -> dict[str, Any]:
     }
 
 
-def get_region_values(metric: MetricName = "searches") -> dict[str, Any]:
-    frame = get_demand_dataframe()
+def get_region_values(
+    metric: MetricName = "searches",
+    filters: DemandFilters | None = None,
+) -> dict[str, Any]:
+    frame = apply_demand_filters(get_demand_dataframe(), filters)
     values: dict[str, Any] = {}
 
     for province_number, province_frame in frame.groupby("province_number"):
@@ -158,10 +267,13 @@ def get_region_values(metric: MetricName = "searches") -> dict[str, Any]:
     }
 
 
-def get_overview(metric: MetricName = "searches") -> dict[str, Any]:
-    frame = get_demand_dataframe()
+def get_overview(
+    metric: MetricName = "searches",
+    filters: DemandFilters | None = None,
+) -> dict[str, Any]:
+    frame = apply_demand_filters(get_demand_dataframe(), filters)
     summary = _summary_from_frame(frame)
-    provinces = get_region_values(metric)["values"]
+    provinces = get_region_values(metric, filters)["values"]
     ranked = sorted(
         (
             {
@@ -206,8 +318,11 @@ def get_overview(metric: MetricName = "searches") -> dict[str, Any]:
     }
 
 
-def get_province_detail(province_number: int) -> dict[str, Any] | None:
-    frame = get_demand_dataframe()
+def get_province_detail(
+    province_number: int,
+    filters: DemandFilters | None = None,
+) -> dict[str, Any] | None:
+    frame = apply_demand_filters(get_demand_dataframe(), filters)
     province_frame = frame[frame["province_number"] == province_number]
 
     if province_frame.empty:
