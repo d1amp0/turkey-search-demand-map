@@ -12,6 +12,7 @@ export function App() {
     return savedTheme === "dark" ? "dark" : "light";
   });
   const [selection, setSelection] = useState<CoordinateMatch | null>(null);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -42,12 +43,16 @@ export function App() {
           </button>
         </div>
       </nav>
-      <section className="workspace">
+      <section className={isPanelExpanded ? "workspace panel-expanded" : "workspace"}>
         <div className="map-area">
           <TurkeyMap theme={theme} onSelectionChange={setSelection} />
         </div>
         <aside className="charts-panel" aria-label="Charts panel">
-          <SelectionSummary selection={selection} />
+          <SelectionSummary
+            isExpanded={isPanelExpanded}
+            onExpandedChange={setIsPanelExpanded}
+            selection={selection}
+          />
         </aside>
       </section>
     </main>

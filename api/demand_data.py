@@ -182,6 +182,18 @@ def get_overview(metric: MetricName = "searches") -> dict[str, Any]:
         .sort_values("date")
         .to_dict("records")
     )
+    category = (
+        frame.groupby("category", as_index=False)["searches"]
+        .sum()
+        .sort_values("searches", ascending=False)
+        .to_dict("records")
+    )
+    hourly = (
+        frame.groupby("hour", as_index=False)["searches"]
+        .sum()
+        .sort_values("hour")
+        .to_dict("records")
+    )
 
     return {
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -189,6 +201,8 @@ def get_overview(metric: MetricName = "searches") -> dict[str, Any]:
         "summary": summary,
         "top_provinces": ranked[:8],
         "daily_searches": by_date,
+        "category_breakdown": category,
+        "hourly_distribution": hourly,
     }
 
 

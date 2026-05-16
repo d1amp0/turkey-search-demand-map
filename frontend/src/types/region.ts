@@ -67,6 +67,8 @@ export type DemandOverviewResponse = {
   summary: DemandSummary;
   top_provinces: TopProvince[];
   daily_searches: DailySearchPoint[];
+  category_breakdown: CategorySearchPoint[];
+  hourly_distribution: HourlySearchPoint[];
 };
 
 export type ProvinceDemandResponse = {
