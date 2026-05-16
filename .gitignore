@@ -1,4 +1,4 @@
-# Данные и тяжелые файлы (датасеты, веса моделей)
+# Data and generated artifacts
 data/
 models/
 *.csv
@@ -6,24 +6,42 @@ models/
 *.pkl
 *.pt
 *.pth
+geo_log_sample_*.jsonl
+geo_log_sample_*_structure.txt
+turkey_cities_map.html
 
-# Виртуальное окружение
+# Python environments
 .venv/
 venv/
 env/
 
-# Jupyter Notebooks (чекпоинты)
+# Python caches and logs
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
 .ipynb_checkpoints/
 
-# Кэш Python и логи
-__pycache__/
-*.pyc
-*.log
+# Frontend dependencies and build artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
-# Секреты и ключи API
+# Legacy static prototype
+static/
+
+# Secrets and local env
 .env
+.env.*
+!.env.example
 
-# Настройки редакторов и ОС
+# Editors and OS
 .vscode/
 .idea/
 .DS_Store
