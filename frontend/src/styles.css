@@ -292,6 +292,22 @@ button {
   width: 88px;
 }
 
+.coordinate-search .map-pick-toggle {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  font-size: 13px;
+  gap: 7px;
+  height: 36px;
+}
+
+.map-pick-toggle input {
+  accent-color: var(--button-background);
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
 .coordinate-result {
   border-bottom: 1px solid var(--border);
   color: var(--muted-text);

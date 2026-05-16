@@ -7,6 +7,7 @@ import {
   GeoJSON as LeafletGeoJSON,
   MapContainer,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import { fetchRegionValues, fetchTurkeyGeoJson } from "../api/client";
 import type {
@@ -158,12 +159,33 @@ function BoundsController({ data }: { data: TurkeyGeoJson | null }) {
   return null;
 }
 
+function CoordinatePicker({
+  enabled,
+  onPick,
+}: {
+  enabled: boolean;
+  onPick: (latitude: number, longitude: number) => void;
+}) {
+  useMapEvents({
+    click: (event) => {
+      if (!enabled) {
+        return;
+      }
+
+      onPick(event.latlng.lat, event.latlng.lng);
+    },
+  });
+
+  return null;
+}
+
 export function TurkeyMap({ theme }: { theme: Theme }) {
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
   const [regionData, setRegionData] = useState<RegionValuesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [latitudeInput, setLatitudeInput] = useState("39");
   const [longitudeInput, setLongitudeInput] = useState("35");
+  const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
   const [coordinateMatch, setCoordinateMatch] = useState<CoordinateMatch | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
 
@@ -249,6 +271,20 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
     ? new Date(regionData.updated_at).toLocaleString()
     : "Loading data...";
 
+  const updateCoordinateMatch = useCallback((latitude: number, longitude: number) => {
+    const matchingFeature = geoJson?.features.find((feature) =>
+      featureContainsPoint(feature, longitude, latitude),
+    );
+
+    setCoordinateError(null);
+    setCoordinateMatch({
+      latitude,
+      longitude,
+      regionName: matchingFeature?.properties.name ?? null,
+      provinceNumber: matchingFeature?.properties.number ?? null,
+    });
+  }, [geoJson]);
+
   function findLocationByCoordinates() {
     const latitude = Number(latitudeInput.replace(",", "."));
     const longitude = Number(longitudeInput.replace(",", "."));
@@ -266,17 +302,19 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
       return;
     }
 
-    const matchingFeature = geoJson?.features.find((feature) =>
-      featureContainsPoint(feature, longitude, latitude),
-    );
+    updateCoordinateMatch(latitude, longitude);
+  }
 
+  function pickLocationOnMap(latitude: number, longitude: number) {
+    setLatitudeInput(latitude.toFixed(6));
+    setLongitudeInput(longitude.toFixed(6));
+    updateCoordinateMatch(latitude, longitude);
+  }
+
+  function refreshData() {
+    setCoordinateMatch(null);
     setCoordinateError(null);
-    setCoordinateMatch({
-      latitude,
-      longitude,
-      regionName: matchingFeature?.properties.name ?? null,
-      provinceNumber: matchingFeature?.properties.number ?? null,
-    });
+    void loadData();
   }
 
   return (
@@ -309,9 +347,17 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
               onChange={(event) => setLongitudeInput(event.target.value)}
             />
           </label>
+          <label className="map-pick-toggle">
+            <input
+              checked={isMapPickEnabled}
+              onChange={(event) => setIsMapPickEnabled(event.target.checked)}
+              type="checkbox"
+            />
+            <span>Pick on map</span>
+          </label>
           <button type="submit">Find</button>
         </form>
-        <button type="button" onClick={loadData}>
+        <button type="button" onClick={refreshData}>
           Refresh
         </button>
       </div>
@@ -341,6 +387,10 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
           className="leaflet-map"
         >
           <BoundsController data={geoJson} />
+          <CoordinatePicker
+            enabled={isMapPickEnabled}
+            onPick={pickLocationOnMap}
+          />
           {geoJson ? (
             <LeafletGeoJSON
               key={regionData?.updated_at ?? "initial"}
