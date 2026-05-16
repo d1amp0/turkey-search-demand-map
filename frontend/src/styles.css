@@ -344,6 +344,10 @@ button {
   background: var(--map-background);
 }
 
+.leaflet-pane svg path.leaflet-interactive:focus {
+  outline: none;
+}
+
 .region-tooltip {
   background: var(--card-background);
   border: 1px solid var(--border);

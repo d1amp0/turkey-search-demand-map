@@ -6,6 +6,7 @@ import {
   CircleMarker,
   GeoJSON as LeafletGeoJSON,
   MapContainer,
+  Pane,
   useMap,
   useMapEvents,
 } from "react-leaflet";
@@ -50,6 +51,14 @@ function highlightStyle(theme: Theme): PathOptions {
     color: theme === "dark" ? "#e5e7eb" : "#111827",
     fillOpacity: 0.98,
     weight: 2,
+  };
+}
+
+function selectedStyle(theme: Theme): PathOptions {
+  return {
+    color: theme === "dark" ? "#f8fafc" : "#111827",
+    fillOpacity: 1,
+    weight: 3,
   };
 }
 
@@ -188,6 +197,9 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
   const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
   const [coordinateMatch, setCoordinateMatch] = useState<CoordinateMatch | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
+  const [selectedProvinceNumber, setSelectedProvinceNumber] = useState<number | null>(
+    null,
+  );
 
   const valueRange = useMemo(() => {
     const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
@@ -229,9 +241,10 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
       return {
         ...baseStyle(theme),
         fillColor: colorForValue(value, valueRange.min, valueRange.max, theme),
+        ...(provinceNumber === selectedProvinceNumber ? selectedStyle(theme) : {}),
       };
     },
-    [regionData, theme, valueRange],
+    [regionData, selectedProvinceNumber, theme, valueRange],
   );
 
   const onEachFeature = useCallback(
@@ -259,12 +272,23 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
         },
         mouseover: () => {
           if ("setStyle" in layer) {
-            (layer as Path).setStyle(highlightStyle(theme));
+            (layer as Path).setStyle(
+              feature.properties.number === selectedProvinceNumber
+                ? selectedStyle(theme)
+                : highlightStyle(theme),
+            );
+          }
+        },
+        click: () => {
+          setSelectedProvinceNumber(feature.properties.number);
+
+          if ("bringToFront" in layer) {
+            (layer as Path).bringToFront();
           }
         },
       });
     },
-    [regionData, styleRegion, theme],
+    [regionData, selectedProvinceNumber, styleRegion, theme],
   );
 
   const updatedAt = regionData?.updated_at
@@ -314,6 +338,7 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
   function refreshData() {
     setCoordinateMatch(null);
     setCoordinateError(null);
+    setSelectedProvinceNumber(null);
     void loadData();
   }
 
@@ -391,26 +416,30 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
             enabled={isMapPickEnabled}
             onPick={pickLocationOnMap}
           />
-          {geoJson ? (
-            <LeafletGeoJSON
-              key={regionData?.updated_at ?? "initial"}
-              data={geoJson}
-              style={styleRegion}
-              onEachFeature={onEachFeature}
-            />
-          ) : null}
-          {coordinateMatch ? (
-            <CircleMarker
-              center={[coordinateMatch.latitude, coordinateMatch.longitude]}
-              pathOptions={{
-                color: theme === "dark" ? "#f8fafc" : "#111827",
-                fillColor: "#ef4444",
-                fillOpacity: 1,
-                weight: 2,
-              }}
-              radius={7}
-            />
-          ) : null}
+          <Pane name="province-pane" style={{ zIndex: 400 }}>
+            {geoJson ? (
+              <LeafletGeoJSON
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}`}
+                data={geoJson}
+                style={styleRegion}
+                onEachFeature={onEachFeature}
+              />
+            ) : null}
+          </Pane>
+          <Pane name="marker-pane" style={{ zIndex: 450 }}>
+            {coordinateMatch ? (
+              <CircleMarker
+                center={[coordinateMatch.latitude, coordinateMatch.longitude]}
+                pathOptions={{
+                  color: theme === "dark" ? "#f8fafc" : "#111827",
+                  fillColor: "#ef4444",
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+                radius={7}
+              />
+            ) : null}
+          </Pane>
         </MapContainer>
       </div>
     </section>
