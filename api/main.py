@@ -5,7 +5,11 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.region_data import get_region_values
+from api.demand_data import get_metric_catalog
+from api.demand_data import get_overview
+from api.demand_data import get_province_detail
+from api.demand_data import get_region_values
+from api.demand_data import MetricName
 from api.settings import FRONTEND_DIST_DIR, GEOJSON_PATH
 
 
@@ -36,9 +40,34 @@ def city_boundaries() -> FileResponse:
     return FileResponse(GEOJSON_PATH, media_type="application/geo+json")
 
 
+@app.get("/api/metrics")
+def metrics() -> dict:
+    return get_metric_catalog()
+
+
+@app.get("/api/demand/region-values")
+def demand_region_values(metric: MetricName = "searches") -> dict:
+    return get_region_values(metric)
+
+
+@app.get("/api/demand/overview")
+def demand_overview(metric: MetricName = "searches") -> dict:
+    return get_overview(metric)
+
+
+@app.get("/api/demand/provinces/{province_number}")
+def demand_province_detail(province_number: int) -> dict:
+    detail = get_province_detail(province_number)
+
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Province not found")
+
+    return detail
+
+
 @app.get("/api/region-values")
-def region_values() -> dict:
-    return get_region_values()
+def region_values(metric: MetricName = "searches") -> dict:
+    return get_region_values(metric)
 
 
 @app.get("/{path:path}")

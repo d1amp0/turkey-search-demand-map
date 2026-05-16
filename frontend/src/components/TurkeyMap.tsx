@@ -282,6 +282,19 @@ export function TurkeyMap({
         },
         click: () => {
           setSelectedProvinceNumber(feature.properties.number);
+          setCoordinateError(null);
+          setCoordinateMatch({
+            latitude: null,
+            longitude: null,
+            regionName: feature.properties.name,
+            provinceNumber: feature.properties.number,
+          });
+          onSelectionChange({
+            latitude: null,
+            longitude: null,
+            regionName: feature.properties.name,
+            provinceNumber: feature.properties.number,
+          });
 
           if ("bringToFront" in layer) {
             (layer as Path).bringToFront();
@@ -289,7 +302,7 @@ export function TurkeyMap({
         },
       });
     },
-    [regionData, selectedProvinceNumber, styleRegion, theme],
+    [onSelectionChange, regionData, selectedProvinceNumber, styleRegion, theme],
   );
 
   const updatedAt = regionData?.updated_at
@@ -436,16 +449,18 @@ export function TurkeyMap({
           </Pane>
           <Pane name="marker-pane" style={{ zIndex: 450 }}>
             {coordinateMatch ? (
-              <CircleMarker
-                center={[coordinateMatch.latitude, coordinateMatch.longitude]}
-                pathOptions={{
-                  color: theme === "dark" ? "#f8fafc" : "#111827",
-                  fillColor: "#ef4444",
-                  fillOpacity: 1,
-                  weight: 2,
-                }}
-                radius={7}
-              />
+              coordinateMatch.latitude !== null && coordinateMatch.longitude !== null ? (
+                <CircleMarker
+                  center={[coordinateMatch.latitude, coordinateMatch.longitude]}
+                  pathOptions={{
+                    color: theme === "dark" ? "#f8fafc" : "#111827",
+                    fillColor: "#ef4444",
+                    fillOpacity: 1,
+                    weight: 2,
+                  }}
+                  radius={7}
+                />
+              ) : null
             ) : null}
           </Pane>
         </MapContainer>
