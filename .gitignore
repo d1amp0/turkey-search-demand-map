@@ -1,0 +1,29 @@
+# Данные и тяжелые файлы (датасеты, веса моделей)
+data/
+models/
+*.csv
+*.parquet
+*.pkl
+*.pt
+*.pth
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# Jupyter Notebooks (чекпоинты)
+.ipynb_checkpoints/
+
+# Кэш Python и логи
+__pycache__/
+*.pyc
+*.log
+
+# Секреты и ключи API
+.env
+
+# Настройки редакторов и ОС
+.vscode/
+.idea/
+.DS_Store
