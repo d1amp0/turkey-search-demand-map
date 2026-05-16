@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FilterBar } from "./components/FilterBar";
 import { TurkeyMap } from "./components/TurkeyMap";
 
 type Theme = "light" | "dark";
@@ -17,6 +18,7 @@ export function App() {
   return (
     <main className="app-shell" data-theme={theme}>
       <nav className="navbar" aria-label="Main navigation">
+        <FilterBar />
         <div className="navbar-spacer" />
         <div className="theme-toggle" aria-label="Theme switcher">
           <button

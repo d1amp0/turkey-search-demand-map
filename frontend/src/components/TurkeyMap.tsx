@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import L from "leaflet";
 import type { Layer, Path, PathOptions } from "leaflet";
-import { GeoJSON as LeafletGeoJSON, MapContainer, useMap } from "react-leaflet";
+import {
+  CircleMarker,
+  GeoJSON as LeafletGeoJSON,
+  MapContainer,
+  useMap,
+} from "react-leaflet";
 import { fetchRegionValues, fetchTurkeyGeoJson } from "../api/client";
 import type {
   RegionValuesResponse,
@@ -11,6 +16,12 @@ import type {
 
 type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 type Theme = "light" | "dark";
+type CoordinateMatch = {
+  latitude: number;
+  longitude: number;
+  regionName: string | null;
+  provinceNumber: number | null;
+};
 
 const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
   light: {
@@ -65,6 +76,63 @@ function colorForValue(
   return `hsl(199 86% ${lightness}%)`;
 }
 
+function pointInRing(
+  longitude: number,
+  latitude: number,
+  ring: number[][],
+) {
+  let isInside = false;
+
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const [currentLongitude, currentLatitude] = ring[index];
+    const [previousLongitude, previousLatitude] = ring[previous];
+    const intersects =
+      currentLatitude > latitude !== previousLatitude > latitude &&
+      longitude <
+        ((previousLongitude - currentLongitude) * (latitude - currentLatitude)) /
+          (previousLatitude - currentLatitude) +
+          currentLongitude;
+
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
+function pointInPolygon(
+  longitude: number,
+  latitude: number,
+  coordinates: number[][][],
+) {
+  const [outerRing, ...holes] = coordinates;
+
+  if (!pointInRing(longitude, latitude, outerRing)) {
+    return false;
+  }
+
+  return !holes.some((hole) => pointInRing(longitude, latitude, hole));
+}
+
+function featureContainsPoint(
+  feature: Feature<Geometry, TurkeyProvinceProperties>,
+  longitude: number,
+  latitude: number,
+) {
+  if (feature.geometry.type === "Polygon") {
+    return pointInPolygon(longitude, latitude, feature.geometry.coordinates);
+  }
+
+  if (feature.geometry.type === "MultiPolygon") {
+    return feature.geometry.coordinates.some((polygon) =>
+      pointInPolygon(longitude, latitude, polygon),
+    );
+  }
+
+  return false;
+}
+
 function BoundsController({ data }: { data: TurkeyGeoJson | null }) {
   const map = useMap();
 
@@ -75,7 +143,7 @@ function BoundsController({ data }: { data: TurkeyGeoJson | null }) {
 
     const layer = L.geoJSON(data);
     const bounds = layer.getBounds();
-    const zoom = map.getBoundsZoom(bounds, false, L.point(2, 2));
+    const zoom = map.getBoundsZoom(bounds, false, L.point(72, 72)) - 0.3;
 
     map.invalidateSize();
     map.setView(bounds.getCenter(), zoom, { animate: false });
@@ -94,6 +162,10 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
   const [regionData, setRegionData] = useState<RegionValuesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [latitudeInput, setLatitudeInput] = useState("39");
+  const [longitudeInput, setLongitudeInput] = useState("35");
+  const [coordinateMatch, setCoordinateMatch] = useState<CoordinateMatch | null>(null);
+  const [coordinateError, setCoordinateError] = useState<string | null>(null);
 
   const valueRange = useMemo(() => {
     const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
@@ -177,6 +249,36 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
     ? new Date(regionData.updated_at).toLocaleString()
     : "Loading data...";
 
+  function findLocationByCoordinates() {
+    const latitude = Number(latitudeInput.replace(",", "."));
+    const longitude = Number(longitudeInput.replace(",", "."));
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      setCoordinateError("Enter valid latitude and longitude");
+      setCoordinateMatch(null);
+      return;
+    }
+
+    const matchingFeature = geoJson?.features.find((feature) =>
+      featureContainsPoint(feature, longitude, latitude),
+    );
+
+    setCoordinateError(null);
+    setCoordinateMatch({
+      latitude,
+      longitude,
+      regionName: matchingFeature?.properties.name ?? null,
+      provinceNumber: matchingFeature?.properties.number ?? null,
+    });
+  }
+
   return (
     <section className="map-card">
       <div className="map-toolbar">
@@ -184,9 +286,43 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
           <h1>Turkey demand map</h1>
           <p>{error ?? `Updated: ${updatedAt}`}</p>
         </div>
+        <form
+          className="coordinate-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            findLocationByCoordinates();
+          }}
+        >
+          <label>
+            <span>Lat</span>
+            <input
+              inputMode="decimal"
+              value={latitudeInput}
+              onChange={(event) => setLatitudeInput(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Lon</span>
+            <input
+              inputMode="decimal"
+              value={longitudeInput}
+              onChange={(event) => setLongitudeInput(event.target.value)}
+            />
+          </label>
+          <button type="submit">Find</button>
+        </form>
         <button type="button" onClick={loadData}>
           Refresh
         </button>
+      </div>
+
+      <div className="coordinate-result" aria-live="polite">
+        {coordinateError ??
+          (coordinateMatch
+            ? coordinateMatch.regionName
+              ? `${coordinateMatch.regionName} province (${coordinateMatch.provinceNumber})`
+              : "Coordinates are outside Turkey"
+            : "Enter coordinates to identify a province")}
       </div>
 
       <div className="map-canvas">
@@ -211,6 +347,18 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
               data={geoJson}
               style={styleRegion}
               onEachFeature={onEachFeature}
+            />
+          ) : null}
+          {coordinateMatch ? (
+            <CircleMarker
+              center={[coordinateMatch.latitude, coordinateMatch.longitude]}
+              pathOptions={{
+                color: theme === "dark" ? "#f8fafc" : "#111827",
+                fillColor: "#ef4444",
+                fillOpacity: 1,
+                weight: 2,
+              }}
+              radius={7}
             />
           ) : null}
         </MapContainer>
