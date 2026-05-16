@@ -643,13 +643,14 @@ button {
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(112px, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 132px) minmax(0, 1fr);
 }
 
 .pie-chart {
   display: block;
-  height: 132px;
-  width: 132px;
+  height: auto;
+  max-width: 132px;
+  width: 100%;
 }
 
 .pie-chart-base {
@@ -668,6 +669,7 @@ button {
 .pie-legend {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .pie-legend-row {
@@ -757,5 +759,12 @@ button {
 
   .pie-chart-wrap {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1180px) {
+  .pie-chart-wrap {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 }
