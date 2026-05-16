@@ -1,5 +1,5 @@
 # Data and generated artifacts
-data/
+*.jsonl
 models/
 *.csv
 *.parquet
