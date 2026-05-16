@@ -370,6 +370,21 @@ export function TurkeyMap({
           <h1>Turkey demand map</h1>
           <p>{error ?? `Updated: ${updatedAt}`}</p>
         </div>
+        <button className="refresh-button" type="button" onClick={refreshData}>
+          Refresh
+        </button>
+      </div>
+
+      <div className="coordinate-result" aria-live="polite">
+        {coordinateError ??
+          (coordinateMatch
+            ? coordinateMatch.regionName
+              ? `${coordinateMatch.regionName} province (${coordinateMatch.provinceNumber})`
+              : "Coordinates are outside Turkey"
+            : "Enter coordinates to identify a province")}
+      </div>
+
+      <div className="map-canvas">
         <form
           className="coordinate-search"
           onSubmit={(event) => {
@@ -403,21 +418,6 @@ export function TurkeyMap({
           </label>
           <button type="submit">Find</button>
         </form>
-        <button type="button" onClick={refreshData}>
-          Refresh
-        </button>
-      </div>
-
-      <div className="coordinate-result" aria-live="polite">
-        {coordinateError ??
-          (coordinateMatch
-            ? coordinateMatch.regionName
-              ? `${coordinateMatch.regionName} province (${coordinateMatch.provinceNumber})`
-              : "Coordinates are outside Turkey"
-            : "Enter coordinates to identify a province")}
-      </div>
-
-      <div className="map-canvas">
         <MapContainer
           center={[39, 35]}
           zoom={6}
