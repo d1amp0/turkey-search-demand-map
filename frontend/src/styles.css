@@ -80,12 +80,132 @@ button {
   background: var(--card-background);
   border-bottom: 1px solid var(--border);
   display: flex;
+  gap: 12px;
   justify-content: flex-end;
   padding: 0 14px;
 }
 
 .navbar-spacer {
   flex: 1;
+}
+
+.filter-bar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  position: relative;
+}
+
+.filter-group {
+  position: relative;
+}
+
+.filter-trigger {
+  background: var(--toggle-background);
+  border-color: var(--border);
+  color: var(--text);
+  min-width: 88px;
+}
+
+.filter-trigger.active {
+  background: var(--toggle-button-active);
+  box-shadow: var(--toggle-button-active-shadow);
+}
+
+.filter-popover {
+  background: var(--card-background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 14px;
+  left: 0;
+  padding: 14px;
+  position: absolute;
+  top: calc(100% + 10px);
+  z-index: 1000;
+}
+
+.time-popover {
+  width: 330px;
+}
+
+.regions-popover {
+  width: 250px;
+}
+
+.filter-section {
+  display: grid;
+  gap: 10px;
+}
+
+.filter-section-header {
+  align-items: center;
+  color: var(--muted-text);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+
+.filter-section-header button {
+  background: transparent;
+  border: 0;
+  color: var(--muted-text);
+  font-size: 12px;
+  min-height: auto;
+  padding: 0;
+}
+
+.chip-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.hours-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.days-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.seasons-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.chip {
+  background: var(--toggle-background);
+  border-color: var(--border);
+  color: var(--text);
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+.chip.active {
+  background: var(--button-background);
+  border-color: var(--button-border);
+  color: var(--button-color);
+}
+
+.region-list {
+  display: grid;
+  gap: 10px;
+}
+
+.region-option {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+}
+
+.region-option input {
+  accent-color: var(--button-background);
+  height: 16px;
+  margin: 0;
+  width: 16px;
 }
 
 .theme-toggle {
@@ -116,7 +236,7 @@ button {
 .workspace {
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 4fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
   min-height: 0;
   min-width: 0;
   padding: 12px;
@@ -134,7 +254,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
 }
@@ -146,6 +266,37 @@ button {
   gap: 16px;
   justify-content: space-between;
   padding: 12px 14px;
+}
+
+.coordinate-search {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+}
+
+.coordinate-search label {
+  color: var(--muted-text);
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.coordinate-search input {
+  background: var(--card-background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  height: 36px;
+  padding: 0 10px;
+  width: 88px;
+}
+
+.coordinate-result {
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-text);
+  font-size: 13px;
+  padding: 10px 14px;
 }
 
 .map-toolbar h1 {
@@ -205,5 +356,15 @@ button {
   .workspace {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(520px, 4fr) minmax(180px, 1fr);
+  }
+
+  .map-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coordinate-search {
+    align-items: end;
+    flex-wrap: wrap;
   }
 }
