@@ -130,8 +130,12 @@ button {
   width: 330px;
 }
 
-.regions-popover {
-  width: 250px;
+.provinces-popover {
+  width: 280px;
+}
+
+.results-popover {
+  width: 310px;
 }
 
 .filter-section {
@@ -174,6 +178,14 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.rating-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.steps-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .chip {
   background: var(--toggle-background);
   border-color: var(--border);
@@ -188,9 +200,27 @@ button {
   color: var(--button-color);
 }
 
-.region-list {
+.province-list,
+.stacked-options {
   display: grid;
   gap: 10px;
+}
+
+.province-list {
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.province-search {
+  background: var(--card-background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  height: 36px;
+  padding: 0 10px;
+  width: 100%;
 }
 
 .region-option {
@@ -362,6 +392,82 @@ button {
   background: var(--card-background);
   border: 1px solid var(--border);
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.summary-panel {
+  display: grid;
+  gap: 18px;
+  padding: 16px;
+}
+
+.summary-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.summary-header h2 {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.summary-header span {
+  color: var(--muted-text);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.summary-content {
+  display: grid;
+  gap: 18px;
+}
+
+.summary-primary {
+  display: grid;
+  gap: 4px;
+}
+
+.summary-primary strong {
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.summary-primary span,
+.summary-empty {
+  color: var(--muted-text);
+  font-size: 14px;
+  margin: 0;
+}
+
+.summary-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.summary-grid div {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+}
+
+.summary-grid div:last-child {
+  grid-column: 1 / -1;
+}
+
+.summary-grid dt {
+  color: var(--muted-text);
+  font-size: 12px;
+}
+
+.summary-grid dd {
+  font-size: 15px;
+  margin: 0;
 }
 
 @media (max-width: 820px) {

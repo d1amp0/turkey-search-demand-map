@@ -1,6 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fetchTurkeyGeoJson } from "../api/client";
 
-type FilterMenu = "time" | "regions" | null;
+type FilterMenu = "time" | "provinces" | "results" | null;
+type ProvinceOption = {
+  name: string;
+  number: number;
+};
 
 const hourRanges = [
   "00-05",
@@ -12,17 +17,10 @@ const hourRanges = [
 ];
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const seasons = ["Winter", "Spring", "Summer", "Autumn"];
-
-const regionGroups = [
-  "Marmara",
-  "Aegean",
-  "Mediterranean",
-  "Central Anatolia",
-  "Black Sea",
-  "Eastern Anatolia",
-  "Southeastern Anatolia",
-];
+const resultStates = ["Organizations found", "No organizations"];
+const ratingThresholds = ["Any rating", "3.0+", "4.0+", "4.5+"];
+const stepRanges = ["1-3 steps", "4-6 steps", "7+ steps"];
+const sourceStates = ["Has sources", "No sources"];
 
 function toggleValue(value: string, selected: string[], onChange: (next: string[]) => void) {
   onChange(
@@ -48,9 +46,27 @@ export function FilterBar() {
   const [openMenu, setOpenMenu] = useState<FilterMenu>(null);
   const [selectedHours, setSelectedHours] = useState<string[]>([]);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
+  const [selectedResultStates, setSelectedResultStates] = useState<string[]>([]);
+  const [selectedRating, setSelectedRating] = useState("Any rating");
+  const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
+  const [selectedSourceStates, setSelectedSourceStates] = useState<string[]>([]);
+  const [provinceSearch, setProvinceSearch] = useState("");
+  const [provinces, setProvinces] = useState<ProvinceOption[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void fetchTurkeyGeoJson().then((geoJson) => {
+      setProvinces(
+        geoJson.features
+          .map((feature) => ({
+            name: feature.properties.name,
+            number: feature.properties.number,
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name)),
+      );
+    });
+  }, []);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -66,10 +82,28 @@ export function FilterBar() {
     };
   }, []);
 
+  const filteredProvinces = useMemo(() => {
+    const normalizedQuery = provinceSearch.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return provinces;
+    }
+
+    return provinces.filter((province) =>
+      province.name.toLowerCase().includes(normalizedQuery),
+    );
+  }, [provinceSearch, provinces]);
+
   const timeSummary =
-    selectedHours.length + selectedDays.length + selectedSeasons.length > 0
-      ? `${selectedHours.length + selectedDays.length + selectedSeasons.length} selected`
+    selectedHours.length + selectedDays.length > 0
+      ? `${selectedHours.length + selectedDays.length} selected`
       : "Time";
+
+  const resultSelectionCount =
+    selectedResultStates.length +
+    selectedSteps.length +
+    selectedSourceStates.length +
+    (selectedRating === "Any rating" ? 0 : 1);
 
   return (
     <div className="filter-bar" ref={containerRef}>
@@ -126,26 +160,49 @@ export function FilterBar() {
                 ))}
               </div>
             </div>
+          </div>
+        ) : null}
+      </div>
 
-            <div className="filter-section">
-              <div className="filter-section-header">
-                <span>Seasons</span>
-                <button type="button" onClick={() => setSelectedSeasons([])}>
-                  Clear
-                </button>
-              </div>
-              <div className="chip-grid seasons-grid">
-                {seasons.map((season) => (
-                  <button
-                    type="button"
-                    className={selectedSeasons.includes(season) ? "chip active" : "chip"}
-                    key={season}
-                    onClick={() => toggleValue(season, selectedSeasons, setSelectedSeasons)}
-                  >
-                    {season}
-                  </button>
-                ))}
-              </div>
+      <div className="filter-group">
+        <button
+          type="button"
+          className={
+            openMenu === "provinces" ? "filter-trigger active" : "filter-trigger"
+          }
+          aria-expanded={openMenu === "provinces"}
+          onClick={() => setOpenMenu(openMenu === "provinces" ? null : "provinces")}
+        >
+          {summaryLabel(selectedProvinces, "Provinces")}
+        </button>
+
+        {openMenu === "provinces" ? (
+          <div className="filter-popover provinces-popover">
+            <div className="filter-section-header">
+              <span>Query province</span>
+              <button type="button" onClick={() => setSelectedProvinces([])}>
+                Clear
+              </button>
+            </div>
+            <input
+              className="province-search"
+              placeholder="Search province"
+              value={provinceSearch}
+              onChange={(event) => setProvinceSearch(event.target.value)}
+            />
+            <div className="province-list">
+              {filteredProvinces.map((province) => (
+                <label className="region-option" key={province.number}>
+                  <input
+                    checked={selectedProvinces.includes(province.name)}
+                    type="checkbox"
+                    onChange={() =>
+                      toggleValue(province.name, selectedProvinces, setSelectedProvinces)
+                    }
+                  />
+                  <span>{province.name}</span>
+                </label>
+              ))}
             </div>
           </div>
         ) : null}
@@ -154,34 +211,98 @@ export function FilterBar() {
       <div className="filter-group">
         <button
           type="button"
-          className={openMenu === "regions" ? "filter-trigger active" : "filter-trigger"}
-          aria-expanded={openMenu === "regions"}
-          onClick={() => setOpenMenu(openMenu === "regions" ? null : "regions")}
+          className={openMenu === "results" ? "filter-trigger active" : "filter-trigger"}
+          aria-expanded={openMenu === "results"}
+          onClick={() => setOpenMenu(openMenu === "results" ? null : "results")}
         >
-          {summaryLabel(selectedRegions, "Regions")}
+          {resultSelectionCount ? `${resultSelectionCount} selected` : "Results"}
         </button>
 
-        {openMenu === "regions" ? (
-          <div className="filter-popover regions-popover">
-            <div className="filter-section-header">
-              <span>Geographic regions</span>
-              <button type="button" onClick={() => setSelectedRegions([])}>
-                Clear
-              </button>
+        {openMenu === "results" ? (
+          <div className="filter-popover results-popover">
+            <div className="filter-section">
+              <div className="filter-section-header">
+                <span>Organizations</span>
+                <button type="button" onClick={() => setSelectedResultStates([])}>
+                  Clear
+                </button>
+              </div>
+              <div className="stacked-options">
+                {resultStates.map((state) => (
+                  <label className="region-option" key={state}>
+                    <input
+                      checked={selectedResultStates.includes(state)}
+                      type="checkbox"
+                      onChange={() =>
+                        toggleValue(state, selectedResultStates, setSelectedResultStates)
+                      }
+                    />
+                    <span>{state}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <div className="region-list">
-              {regionGroups.map((region) => (
-                <label className="region-option" key={region}>
-                  <input
-                    checked={selectedRegions.includes(region)}
-                    type="checkbox"
-                    onChange={() =>
-                      toggleValue(region, selectedRegions, setSelectedRegions)
-                    }
-                  />
-                  <span>{region}</span>
-                </label>
-              ))}
+
+            <div className="filter-section">
+              <div className="filter-section-header">
+                <span>Rating</span>
+              </div>
+              <div className="chip-grid rating-grid">
+                {ratingThresholds.map((rating) => (
+                  <button
+                    type="button"
+                    className={selectedRating === rating ? "chip active" : "chip"}
+                    key={rating}
+                    onClick={() => setSelectedRating(rating)}
+                  >
+                    {rating}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="filter-section">
+              <div className="filter-section-header">
+                <span>Agent steps</span>
+                <button type="button" onClick={() => setSelectedSteps([])}>
+                  Clear
+                </button>
+              </div>
+              <div className="chip-grid steps-grid">
+                {stepRanges.map((stepRange) => (
+                  <button
+                    type="button"
+                    className={selectedSteps.includes(stepRange) ? "chip active" : "chip"}
+                    key={stepRange}
+                    onClick={() => toggleValue(stepRange, selectedSteps, setSelectedSteps)}
+                  >
+                    {stepRange}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="filter-section">
+              <div className="filter-section-header">
+                <span>Sources</span>
+                <button type="button" onClick={() => setSelectedSourceStates([])}>
+                  Clear
+                </button>
+              </div>
+              <div className="stacked-options">
+                {sourceStates.map((state) => (
+                  <label className="region-option" key={state}>
+                    <input
+                      checked={selectedSourceStates.includes(state)}
+                      type="checkbox"
+                      onChange={() =>
+                        toggleValue(state, selectedSourceStates, setSelectedSourceStates)
+                      }
+                    />
+                    <span>{state}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}

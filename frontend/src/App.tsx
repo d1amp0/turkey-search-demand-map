@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { FilterBar } from "./components/FilterBar";
+import { SelectionSummary } from "./components/SelectionSummary";
 import { TurkeyMap } from "./components/TurkeyMap";
+import type { CoordinateMatch } from "./types/selection";
 
 type Theme = "light" | "dark";
 
@@ -9,6 +11,7 @@ export function App() {
     const savedTheme = window.localStorage.getItem("theme");
     return savedTheme === "dark" ? "dark" : "light";
   });
+  const [selection, setSelection] = useState<CoordinateMatch | null>(null);
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -41,9 +44,11 @@ export function App() {
       </nav>
       <section className="workspace">
         <div className="map-area">
-          <TurkeyMap theme={theme} />
+          <TurkeyMap theme={theme} onSelectionChange={setSelection} />
         </div>
-        <aside className="charts-panel" aria-label="Charts panel" />
+        <aside className="charts-panel" aria-label="Charts panel">
+          <SelectionSummary selection={selection} />
+        </aside>
       </section>
     </main>
   );

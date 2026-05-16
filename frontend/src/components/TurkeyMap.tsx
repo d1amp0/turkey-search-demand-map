@@ -15,15 +15,10 @@ import type {
   RegionValuesResponse,
   TurkeyProvinceProperties,
 } from "../types/region";
+import type { CoordinateMatch } from "../types/selection";
 
 type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 type Theme = "light" | "dark";
-type CoordinateMatch = {
-  latitude: number;
-  longitude: number;
-  regionName: string | null;
-  provinceNumber: number | null;
-};
 
 const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
   light: {
@@ -188,7 +183,13 @@ function CoordinatePicker({
   return null;
 }
 
-export function TurkeyMap({ theme }: { theme: Theme }) {
+export function TurkeyMap({
+  theme,
+  onSelectionChange,
+}: {
+  theme: Theme;
+  onSelectionChange: (selection: CoordinateMatch | null) => void;
+}) {
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
   const [regionData, setRegionData] = useState<RegionValuesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -295,19 +296,24 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
     ? new Date(regionData.updated_at).toLocaleString()
     : "Loading data...";
 
-  const updateCoordinateMatch = useCallback((latitude: number, longitude: number) => {
-    const matchingFeature = geoJson?.features.find((feature) =>
-      featureContainsPoint(feature, longitude, latitude),
-    );
+  const updateCoordinateMatch = useCallback(
+    (latitude: number, longitude: number) => {
+      const matchingFeature = geoJson?.features.find((feature) =>
+        featureContainsPoint(feature, longitude, latitude),
+      );
+      const nextSelection = {
+        latitude,
+        longitude,
+        regionName: matchingFeature?.properties.name ?? null,
+        provinceNumber: matchingFeature?.properties.number ?? null,
+      };
 
-    setCoordinateError(null);
-    setCoordinateMatch({
-      latitude,
-      longitude,
-      regionName: matchingFeature?.properties.name ?? null,
-      provinceNumber: matchingFeature?.properties.number ?? null,
-    });
-  }, [geoJson]);
+      setCoordinateError(null);
+      setCoordinateMatch(nextSelection);
+      onSelectionChange(nextSelection);
+    },
+    [geoJson, onSelectionChange],
+  );
 
   function findLocationByCoordinates() {
     const latitude = Number(latitudeInput.replace(",", "."));
@@ -323,6 +329,7 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
     ) {
       setCoordinateError("Enter valid latitude and longitude");
       setCoordinateMatch(null);
+      onSelectionChange(null);
       return;
     }
 
@@ -339,6 +346,7 @@ export function TurkeyMap({ theme }: { theme: Theme }) {
     setCoordinateMatch(null);
     setCoordinateError(null);
     setSelectedProvinceNumber(null);
+    onSelectionChange(null);
     void loadData();
   }
 
