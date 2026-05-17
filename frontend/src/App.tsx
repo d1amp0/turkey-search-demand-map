@@ -3,6 +3,8 @@ import { FilterBar } from "./components/FilterBar";
 import { SelectionSummary } from "./components/SelectionSummary";
 import { TurkeyMap } from "./components/TurkeyMap";
 import { emptyDemandFilters } from "./types/filters";
+import { heatmapPalettes } from "./types/palette";
+import type { HeatmapPalette } from "./types/palette";
 import type { CoordinateMatch } from "./types/selection";
 
 type Theme = "light" | "dark";
@@ -15,6 +17,7 @@ export function App() {
   const [selection, setSelection] = useState<CoordinateMatch | null>(null);
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [filters, setFilters] = useState(emptyDemandFilters);
+  const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -22,7 +25,11 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-theme={theme}>
+    <main
+      className="app-shell"
+      data-theme={theme}
+      style={{ "--accent": heatmapPalettes[heatmapPalette].accent } as React.CSSProperties}
+    >
       <nav className="navbar" aria-label="Main navigation">
         <FilterBar filters={filters} onFiltersChange={setFilters} />
         <div className="navbar-spacer" />
@@ -49,7 +56,9 @@ export function App() {
         <div className="map-area">
           <TurkeyMap
             filters={filters}
+            heatmapPalette={heatmapPalette}
             theme={theme}
+            onHeatmapPaletteChange={setHeatmapPalette}
             onSelectionChange={setSelection}
           />
         </div>
@@ -57,6 +66,7 @@ export function App() {
           <SelectionSummary
             isExpanded={isPanelExpanded}
             filters={filters}
+            heatmapPalette={heatmapPalette}
             onExpandedChange={setIsPanelExpanded}
             selection={selection}
           />

@@ -12,6 +12,8 @@ import {
 } from "react-leaflet";
 import { fetchRegionValues, fetchTurkeyGeoJson } from "../api/client";
 import type { DemandFilters } from "../types/filters";
+import { heatmapPalettes } from "../types/palette";
+import type { HeatmapPalette } from "../types/palette";
 import type {
   RegionValuesResponse,
   TurkeyProvinceProperties,
@@ -20,33 +22,6 @@ import type { CoordinateMatch } from "../types/selection";
 
 type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 type Theme = "light" | "dark";
-type HeatmapPalette = "blue" | "green" | "orange" | "purple";
-
-const heatmapPalettes: Record<
-  HeatmapPalette,
-  { label: string; hue: number; saturation: number }
-> = {
-  blue: {
-    label: "Blue",
-    hue: 199,
-    saturation: 86,
-  },
-  green: {
-    label: "Green",
-    hue: 151,
-    saturation: 72,
-  },
-  orange: {
-    label: "Orange",
-    hue: 32,
-    saturation: 92,
-  },
-  purple: {
-    label: "Purple",
-    hue: 267,
-    saturation: 78,
-  },
-};
 
 const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
   light: {
@@ -215,11 +190,15 @@ function CoordinatePicker({
 
 export function TurkeyMap({
   filters,
+  heatmapPalette,
   theme,
+  onHeatmapPaletteChange,
   onSelectionChange,
 }: {
   filters: DemandFilters;
+  heatmapPalette: HeatmapPalette;
   theme: Theme;
+  onHeatmapPaletteChange: (palette: HeatmapPalette) => void;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
 }) {
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
@@ -234,7 +213,6 @@ export function TurkeyMap({
     longitude: number;
   } | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
-  const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
   const [selectedProvinceNumber, setSelectedProvinceNumber] = useState<number | null>(
     null,
   );
@@ -422,7 +400,7 @@ export function TurkeyMap({
             <select
               value={heatmapPalette}
               onChange={(event) =>
-                setHeatmapPalette(event.target.value as HeatmapPalette)
+                onHeatmapPaletteChange(event.target.value as HeatmapPalette)
               }
             >
               {Object.entries(heatmapPalettes).map(([key, palette]) => (
