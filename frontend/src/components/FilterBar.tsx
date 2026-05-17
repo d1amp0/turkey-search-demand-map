@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchTurkeyGeoJson } from "../api/client";
 import type { DemandFilters } from "../types/filters";
 
-type FilterMenu = "time" | "provinces" | "results" | null;
+type FilterMenu =
+  | "metric"
+  | "time"
+  | "provinces"
+  | "organizations"
+  | "results"
+  | null;
 type ProvinceOption = {
   name: string;
   number: number;
@@ -11,6 +17,7 @@ type ArrayFilterKey =
   | "hourRanges"
   | "weekdays"
   | "provinceNumbers"
+  | "categories"
   | "resultStates"
   | "stepRanges"
   | "sourceStates";
@@ -25,6 +32,14 @@ const hourRanges = [
 ];
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const metrics = [
+  { key: "searches", label: "Popularity" },
+  { key: "avg_rating", label: "Rating" },
+  { key: "no_result_rate", label: "No results" },
+  { key: "avg_steps", label: "Agent steps" },
+  { key: "source_coverage", label: "Source coverage" },
+] as const;
+const organizationTypes = ["restaurants", "hotels", "clinics", "transport", "shops"];
 const resultStates = ["Organizations found", "No organizations"];
 const ratingThresholds = ["Any rating", "3.0+", "4.0+", "4.5+"];
 const stepRanges = ["1-3 steps", "4-6 steps", "7+ steps"];
@@ -131,6 +146,38 @@ export function FilterBar({
       <div className="filter-group">
         <button
           type="button"
+          className={openMenu === "metric" ? "filter-trigger active" : "filter-trigger"}
+          aria-expanded={openMenu === "metric"}
+          onClick={() => setOpenMenu(openMenu === "metric" ? null : "metric")}
+        >
+          {metrics.find((metric) => metric.key === filters.metric)?.label ?? "Metric"}
+        </button>
+
+        {openMenu === "metric" ? (
+          <div className="filter-popover metric-popover">
+            <div className="filter-section-header">
+              <span>Map metric</span>
+            </div>
+            <div className="stacked-options">
+              {metrics.map((metric) => (
+                <label className="region-option" key={metric.key}>
+                  <input
+                    checked={filters.metric === metric.key}
+                    name="metric"
+                    type="radio"
+                    onChange={() => updateFilters({ metric: metric.key })}
+                  />
+                  <span>{metric.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="filter-group">
+        <button
+          type="button"
           className={openMenu === "time" ? "filter-trigger active" : "filter-trigger"}
           aria-expanded={openMenu === "time"}
           onClick={() => setOpenMenu(openMenu === "time" ? null : "time")}
@@ -180,6 +227,44 @@ export function FilterBar({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="filter-group">
+        <button
+          type="button"
+          className={
+            openMenu === "organizations" ? "filter-trigger active" : "filter-trigger"
+          }
+          aria-expanded={openMenu === "organizations"}
+          onClick={() =>
+            setOpenMenu(openMenu === "organizations" ? null : "organizations")
+          }
+        >
+          {summaryLabel(filters.categories, "Organizations")}
+        </button>
+
+        {openMenu === "organizations" ? (
+          <div className="filter-popover organizations-popover">
+            <div className="filter-section-header">
+              <span>Organization type</span>
+              <button type="button" onClick={() => updateFilters({ categories: [] })}>
+                Clear
+              </button>
+            </div>
+            <div className="stacked-options">
+              {organizationTypes.map((category) => (
+                <label className="region-option" key={category}>
+                  <input
+                    checked={filters.categories.includes(category)}
+                    type="checkbox"
+                    onChange={() => toggleFilterValue("categories", category)}
+                  />
+                  <span>{category}</span>
+                </label>
+              ))}
             </div>
           </div>
         ) : null}
