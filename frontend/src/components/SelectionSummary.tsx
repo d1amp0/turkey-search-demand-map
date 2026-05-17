@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDemandOverview, fetchProvinceDemand } from "../api/client";
 import type { DemandFilters } from "../types/filters";
+import type { HeatmapPalette } from "../types/palette";
 import type {
   CategorySearchPoint,
   DailySearchPoint,
@@ -22,13 +23,15 @@ function formatPercent(value: number) {
 
 function MetricTile({
   label,
+  tone,
   value,
 }: {
   label: string;
+  tone?: "good" | "warning" | "bad" | "neutral";
   value: string;
 }) {
   return (
-    <div>
+    <div data-tone={tone ?? "neutral"}>
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
@@ -138,13 +141,63 @@ function formatDate(value: string | undefined) {
   }).format(new Date(value));
 }
 
+function ratingTone(value: number) {
+  if (value >= 4) {
+    return "good";
+  }
+
+  if (value >= 3) {
+    return "warning";
+  }
+
+  return "bad";
+}
+
+function inverseRateTone(value: number) {
+  if (value <= 0.15) {
+    return "good";
+  }
+
+  if (value <= 0.3) {
+    return "warning";
+  }
+
+  return "bad";
+}
+
+function coverageTone(value: number) {
+  if (value >= 0.75) {
+    return "good";
+  }
+
+  if (value >= 0.5) {
+    return "warning";
+  }
+
+  return "bad";
+}
+
+function stepsTone(value: number) {
+  if (value <= 3) {
+    return "good";
+  }
+
+  if (value <= 6) {
+    return "warning";
+  }
+
+  return "bad";
+}
+
 export function SelectionSummary({
   filters,
+  heatmapPalette,
   isExpanded,
   onExpandedChange,
   selection,
 }: {
   filters: DemandFilters;
+  heatmapPalette: HeatmapPalette;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   selection: CoordinateMatch | null;
@@ -193,7 +246,11 @@ export function SelectionSummary({
     : "All mapped provinces";
 
   return (
-    <section className="summary-panel" aria-label="Selection summary">
+    <section
+      className="summary-panel"
+      aria-label="Selection summary"
+      data-palette={heatmapPalette}
+    >
       <div className="summary-header">
         <span>Analytics</span>
         <div className="summary-actions">
@@ -220,10 +277,26 @@ export function SelectionSummary({
           </div>
 
           <dl className="summary-grid">
-            <MetricTile label="No results" value={formatPercent(summary.no_result_rate)} />
-            <MetricTile label="Avg rating" value={summary.avg_rating.toFixed(2)} />
-            <MetricTile label="Avg steps" value={summary.avg_steps.toFixed(1)} />
-            <MetricTile label="Source coverage" value={formatPercent(summary.source_coverage)} />
+            <MetricTile
+              label="No results"
+              tone={inverseRateTone(summary.no_result_rate)}
+              value={formatPercent(summary.no_result_rate)}
+            />
+            <MetricTile
+              label="Avg rating"
+              tone={ratingTone(summary.avg_rating)}
+              value={summary.avg_rating.toFixed(2)}
+            />
+            <MetricTile
+              label="Avg steps"
+              tone={stepsTone(summary.avg_steps)}
+              value={summary.avg_steps.toFixed(1)}
+            />
+            <MetricTile
+              label="Source coverage"
+              tone={coverageTone(summary.source_coverage)}
+              value={formatPercent(summary.source_coverage)}
+            />
           </dl>
 
           <div className="chart-block line-chart-block">

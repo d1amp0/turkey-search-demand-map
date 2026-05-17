@@ -20,6 +20,7 @@
   --toggle-button: transparent;
   --toggle-button-active: #ffffff;
   --toggle-button-active-shadow: 0 1px 4px rgba(17, 24, 39, 0.18);
+  --accent: #0284c7;
   background: var(--background);
 }
 
@@ -570,6 +571,21 @@ button {
   padding: 8px;
 }
 
+.summary-grid div[data-tone="good"] {
+  background: color-mix(in srgb, #16a34a 12%, var(--toggle-background));
+  border-color: color-mix(in srgb, #16a34a 42%, var(--border));
+}
+
+.summary-grid div[data-tone="warning"] {
+  background: color-mix(in srgb, #f59e0b 14%, var(--toggle-background));
+  border-color: color-mix(in srgb, #f59e0b 46%, var(--border));
+}
+
+.summary-grid div[data-tone="bad"] {
+  background: color-mix(in srgb, #dc2626 12%, var(--toggle-background));
+  border-color: color-mix(in srgb, #dc2626 42%, var(--border));
+}
+
 .summary-grid dt,
 .coordinate-grid dt {
   color: var(--muted-text);
@@ -581,6 +597,18 @@ button {
   font-size: 14px;
   font-weight: 650;
   margin: 0;
+}
+
+.summary-grid div[data-tone="good"] dd {
+  color: #15803d;
+}
+
+.summary-grid div[data-tone="warning"] dd {
+  color: #b45309;
+}
+
+.summary-grid div[data-tone="bad"] dd {
+  color: #b91c1c;
 }
 
 .chart-block {
@@ -621,7 +649,7 @@ button {
 
 .mini-line-chart polyline {
   fill: none;
-  stroke: #0284c7;
+  stroke: var(--accent);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3;
@@ -662,7 +690,7 @@ button {
 }
 
 .bar-track div {
-  background: #0284c7;
+  background: var(--accent);
   height: 100%;
 }
 
