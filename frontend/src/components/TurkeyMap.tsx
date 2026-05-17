@@ -146,7 +146,7 @@ function markerColors(
   palette: HeatmapPalette,
   theme: Theme,
 ) {
-  if (palette === "redGreen" || palette === "orange") {
+  if (palette === "orange") {
     return {
       border: theme === "dark" ? "#f8fafc" : "#111827",
       fill: "#2563eb",
@@ -370,18 +370,53 @@ export function TurkeyMap({
     }
 
     return geoJson.features
-      .map((feature) => ({
-        distance: provinceSearchScore(query, feature.properties.name),
-        name: feature.properties.name,
-        number: feature.properties.number,
-      }))
-      .sort((left, right) => left.distance - right.distance || left.name.localeCompare(right.name))
-      .slice(0, 5);
+      .map((feature) => {
+        const normalizedQuery = normalizeSearchValue(query);
+        const normalizedName = normalizeSearchValue(feature.properties.name);
+        const distance = levenshteinDistance(query, feature.properties.name);
+        const isPrefixMatch = normalizedName.startsWith(normalizedQuery);
+        const isSubstringMatch = normalizedName.includes(normalizedQuery);
+
+        return {
+          distance,
+          isPrefixMatch,
+          isSubstringMatch,
+          name: feature.properties.name,
+          number: feature.properties.number,
+          score: provinceSearchScore(query, feature.properties.name),
+        };
+      })
+      .filter((province) =>
+        province.isPrefixMatch || province.isSubstringMatch || province.distance <= 1,
+      )
+      .sort((left, right) => {
+        if (left.isPrefixMatch !== right.isPrefixMatch) {
+          return left.isPrefixMatch ? -1 : 1;
+        }
+
+        if (left.isSubstringMatch !== right.isSubstringMatch) {
+          return left.isSubstringMatch ? -1 : 1;
+        }
+
+        return left.score - right.score || left.name.localeCompare(right.name);
+      });
   }, [geoJson, provinceSearch]);
 
   useEffect(() => {
     setActiveSuggestionIndex(0);
   }, [provinceSuggestions]);
+
+  const visibleProvinceSuggestions = useMemo(() => {
+    const startIndex = Math.min(
+      Math.max(activeSuggestionIndex - 2, 0),
+      Math.max(provinceSuggestions.length - 5, 0),
+    );
+
+    return provinceSuggestions.slice(startIndex, startIndex + 5).map((province, index) => ({
+      ...province,
+      index: startIndex + index,
+    }));
+  }, [activeSuggestionIndex, provinceSuggestions]);
 
   const valueRange = useMemo(() => {
     const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
@@ -683,15 +718,15 @@ export function TurkeyMap({
             />
           </label>
           <button type="submit">Find</button>
-          {isProvinceSearchOpen && provinceSuggestions.length ? (
+          {isProvinceSearchOpen && visibleProvinceSuggestions.length ? (
             <div className="province-suggestions">
-              {provinceSuggestions.map((province, index) => (
+              {visibleProvinceSuggestions.map((province) => (
                 <button
-                  className={index === activeSuggestionIndex ? "active" : ""}
+                  className={province.index === activeSuggestionIndex ? "active" : ""}
                   key={province.number}
                   type="button"
                   onClick={() => selectProvince(province)}
-                  onMouseEnter={() => setActiveSuggestionIndex(index)}
+                  onMouseEnter={() => setActiveSuggestionIndex(province.index)}
                 >
                   <span>{province.name}</span>
                 </button>

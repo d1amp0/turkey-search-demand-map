@@ -297,7 +297,7 @@
   }
 
   .province-suggestions {
-    @apply absolute left-2 top-[calc(100%+6px)] grid w-[calc(100%-16px)] overflow-hidden rounded-lg border shadow-[0_16px_32px_rgba(15,23,42,0.16)];
+    @apply absolute left-2 top-[calc(100%+6px)] grid max-h-[180px] w-[calc(100%-16px)] overflow-hidden rounded-lg border shadow-[0_16px_32px_rgba(15,23,42,0.16)];
     background: var(--card-background);
     border-color: var(--border);
   }
@@ -492,17 +492,27 @@
   }
 
   .chart-controls {
-    @apply grid gap-2;
+    @apply grid gap-2.5;
+  }
+
+  .time-window-picker {
+    @apply grid items-center gap-2;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .time-window-picker > span {
+    @apply text-xs font-semibold uppercase;
+    color: var(--muted-text);
   }
 
   .segmented-control {
-    @apply grid grid-cols-4 gap-1 rounded-lg border p-[3px];
+    @apply grid grid-cols-3 gap-1 rounded-md border p-[3px];
     background: var(--toggle-background);
     border-color: var(--border);
   }
 
   .segmented-control button {
-    @apply min-h-7 border-0 px-2 text-xs;
+    @apply min-h-8 border-0 px-2 text-xs font-semibold;
     background: transparent;
     color: var(--muted-text);
   }
@@ -513,9 +523,35 @@
     color: var(--text);
   }
 
-  .chart-controls input[type="range"] {
-    @apply w-full;
-    accent-color: var(--accent);
+  .time-window-control {
+    @apply grid gap-1;
+  }
+
+  .time-window-track {
+    @apply relative h-10 cursor-pointer rounded-md border px-3;
+    background: color-mix(in srgb, var(--toggle-background) 72%, var(--card-background));
+    border-color: var(--border);
+  }
+
+  .time-window-track:focus {
+    outline: 2px solid color-mix(in srgb, var(--accent) 46%, transparent);
+    outline-offset: 2px;
+  }
+
+  .time-window-line {
+    @apply absolute right-4 left-4 top-1/2 h-1 -translate-y-1/2 rounded-full;
+    background: color-mix(in srgb, var(--muted-text) 28%, transparent);
+  }
+
+  .time-window-segment {
+    @apply absolute top-1/2 h-6 -translate-y-1/2 rounded-md border shadow-[0_5px_14px_rgba(15,23,42,0.18)];
+    background: color-mix(in srgb, var(--accent) 72%, var(--card-background));
+    border-color: color-mix(in srgb, var(--accent) 88%, var(--border));
+  }
+
+  .time-window-labels {
+    @apply flex justify-between px-1 text-[11px];
+    color: var(--muted-text);
   }
 
   .line-chart-wrap {
@@ -537,11 +573,11 @@
   }
 
   .mini-line-chart {
-    @apply block h-[150px] w-full;
+    @apply block h-[190px] w-full;
   }
 
   .summary-content.expanded .mini-line-chart {
-    @apply h-[220px];
+    @apply h-[260px];
   }
 
   .chart-empty {

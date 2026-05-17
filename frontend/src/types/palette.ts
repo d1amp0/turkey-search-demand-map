@@ -2,8 +2,7 @@ export type HeatmapPalette =
   | "blue"
   | "green"
   | "orange"
-  | "purple"
-  | "redGreen";
+  | "purple";
 
 export type HeatmapPaletteConfig = {
   accent: string;
@@ -43,12 +42,5 @@ export const heatmapPalettes: Record<HeatmapPalette, HeatmapPaletteConfig> = {
     label: "Purple",
     mode: "hue",
     saturation: 78,
-  },
-  redGreen: {
-    accent: "#16a34a",
-    endColor: "#16a34a",
-    label: "Red-green",
-    mode: "gradient",
-    startColor: "#dc2626",
   },
 };

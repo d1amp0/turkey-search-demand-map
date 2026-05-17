@@ -14,7 +14,6 @@ import type { CoordinateMatch } from "../types/selection";
 
 const chartColors = ["#0284c7", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"];
 const timeWindowOptions = [
-  { key: "hour", label: "Hour", durationHours: 1 },
   { key: "day", label: "Day", durationHours: 24 },
   { key: "week", label: "Week", durationHours: 24 * 7 },
   { key: "month", label: "Month", durationHours: 24 * 30 },
@@ -25,6 +24,10 @@ type ChartPoint = {
   label: string;
   searches: number;
 };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 function formatInteger(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
@@ -56,7 +59,7 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
     const max = Math.max(...data.map((item) => item.searches), 0);
     const safeMax = Math.max(max, 1);
     const width = 320;
-    const height = 180;
+    const height = 210;
     const padding = {
       bottom: 30,
       left: 48,
@@ -181,6 +184,82 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
   );
 }
 
+function TimeWindowSlider({
+  max,
+  value,
+  windowKey,
+  onChange,
+}: {
+  max: number;
+  value: number;
+  windowKey: TimeWindowKey;
+  onChange: (value: number) => void;
+}) {
+  const windowOption =
+    timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
+  const handleWidthPercent = clamp((windowOption.durationHours / (24 * 30)) * 100, 10, 100);
+  const leftPercent = max > 0 ? (value / max) * (100 - handleWidthPercent) : 0;
+
+  function updateFromPointer(clientX: number, target: HTMLDivElement) {
+    const bounds = target.getBoundingClientRect();
+    const ratio = clamp((clientX - bounds.left) / bounds.width, 0, 1);
+    onChange(Math.round(ratio * max));
+  }
+
+  return (
+    <div className="time-window-control">
+      <div
+        className="time-window-track"
+        onPointerDown={(event) => {
+          const target = event.currentTarget;
+          target.setPointerCapture(event.pointerId);
+          updateFromPointer(event.clientX, target);
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+            return;
+          }
+
+          updateFromPointer(event.clientX, event.currentTarget);
+        }}
+        onPointerUp={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        role="slider"
+        aria-label="Time window position"
+        aria-valuemax={max}
+        aria-valuemin={0}
+        aria-valuenow={value}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            onChange(clamp(value - 1, 0, max));
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            onChange(clamp(value + 1, 0, max));
+          }
+        }}
+      >
+        <div className="time-window-line" />
+        <div
+          className="time-window-segment"
+          style={{
+            left: `${leftPercent}%`,
+            width: `${handleWidthPercent}%`,
+          }}
+        />
+      </div>
+      <div className="time-window-labels">
+        <span>Start</span>
+        <span>End</span>
+      </div>
+    </div>
+  );
+}
+
 function aggregateTimeSeries(
   data: TimeSearchPoint[],
   windowKey: TimeWindowKey,
@@ -213,7 +292,7 @@ function aggregateTimeSeries(
   });
   const bucket = new Map<string, number>();
   const labelFormatter =
-    windowKey === "hour" || windowKey === "day"
+    windowKey === "day"
       ? new Intl.DateTimeFormat("en-US", {
           day: "2-digit",
           hour: "2-digit",
@@ -227,7 +306,7 @@ function aggregateTimeSeries(
   selected.forEach((item) => {
     const timestamp = new Date(item.timestamp);
     const key =
-      windowKey === "hour" || windowKey === "day"
+      windowKey === "day"
         ? timestamp.toISOString().slice(0, 13)
         : timestamp.toISOString().slice(0, 10);
 
@@ -235,7 +314,7 @@ function aggregateTimeSeries(
   });
 
   const points = Array.from(bucket.entries()).map(([key, searches]) => ({
-    label: labelFormatter.format(new Date(windowKey === "hour" || windowKey === "day" ? `${key}:00:00` : key)),
+    label: labelFormatter.format(new Date(windowKey === "day" ? `${key}:00:00` : key)),
     searches,
   }));
   const rangeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -515,28 +594,29 @@ export function SelectionSummary({
               <span>{timeChart.rangeLabel}</span>
             </div>
             <div className="chart-controls">
-              <div className="segmented-control">
-                {timeWindowOptions.map((option) => (
-                  <button
-                    className={timeWindow === option.key ? "active" : ""}
-                    key={option.key}
-                    type="button"
-                    onClick={() => {
-                      setTimeWindow(option.key);
-                      setTimeOffset(0);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className="time-window-picker">
+                <span>Window</span>
+                <div className="segmented-control">
+                  {timeWindowOptions.map((option) => (
+                    <button
+                      className={timeWindow === option.key ? "active" : ""}
+                      key={option.key}
+                      type="button"
+                      onClick={() => {
+                        setTimeWindow(option.key);
+                        setTimeOffset(0);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <input
-                aria-label="Time window"
+              <TimeWindowSlider
                 max={timeChart.maxOffset}
-                min={0}
-                type="range"
                 value={Math.min(timeOffset, timeChart.maxOffset)}
-                onChange={(event) => setTimeOffset(Number(event.target.value))}
+                windowKey={timeWindow}
+                onChange={setTimeOffset}
               />
             </div>
             <MiniLineChart data={timeChart.points} />
