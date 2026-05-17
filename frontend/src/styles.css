@@ -56,7 +56,7 @@
   }
 
   button {
-    @apply min-h-9 cursor-pointer rounded-md border px-3.5 text-sm;
+    @apply min-h-9 cursor-pointer rounded-md border px-3.5 text-sm leading-tight;
     background: var(--button-background);
     border-color: var(--button-border);
     color: var(--button-color);
@@ -66,11 +66,12 @@
 
 @layer components {
   .app-shell {
-    @apply grid h-full min-w-0 grid-rows-[56px_minmax(0,1fr)];
+    @apply grid h-full min-w-0;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .navbar {
-    @apply flex items-center justify-end gap-3 border-b px-3.5;
+    @apply flex min-h-14 flex-wrap items-center justify-end gap-2.5 border-b px-3.5 py-2;
     background: var(--card-background);
     border-color: var(--border);
   }
@@ -80,7 +81,7 @@
   }
 
   .filter-bar {
-    @apply relative flex items-center gap-2;
+    @apply relative flex min-w-0 flex-wrap items-center gap-2;
   }
 
   .filter-group {
@@ -88,7 +89,7 @@
   }
 
   .filter-trigger {
-    @apply min-w-22;
+    @apply min-w-22 max-w-40 overflow-hidden text-ellipsis whitespace-nowrap;
     background: var(--toggle-background);
     border-color: var(--border);
     color: var(--text);
@@ -100,7 +101,7 @@
   }
 
   .filter-popover {
-    @apply absolute left-0 top-[calc(100%+10px)] z-[1000] grid gap-3.5 rounded-lg border p-3.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)];
+    @apply absolute left-0 top-[calc(100%+10px)] z-[1000] grid gap-3.5 rounded-lg border p-3.5 text-sm leading-snug shadow-[0_18px_40px_rgba(15,23,42,0.18)];
     background: var(--card-background);
     border-color: var(--border);
   }
@@ -149,7 +150,7 @@
   }
 
   .chip {
-    @apply min-h-8 px-2;
+    @apply min-h-8 px-2 leading-tight;
     background: var(--toggle-background);
     border-color: var(--border);
     color: var(--text);
@@ -183,12 +184,12 @@
   }
 
   .region-option {
-    @apply flex items-center gap-2.5 text-sm;
+    @apply flex items-start gap-2.5 text-sm leading-snug;
     color: var(--text);
   }
 
   .region-option input {
-    @apply m-0 h-4 w-4;
+    @apply mt-0.5 h-4 w-4 flex-none;
     accent-color: var(--button-background);
   }
 
@@ -211,8 +212,8 @@
   }
 
   .workspace {
-    @apply grid min-h-0 min-w-0 gap-3 p-3;
-    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+    @apply grid min-h-0 min-w-0 gap-4 p-4;
+    grid-template-columns: minmax(0, 1fr) 640px;
   }
 
   .workspace.panel-expanded {
@@ -233,7 +234,7 @@
   }
 
   .map-toolbar {
-    @apply flex items-center justify-between gap-4 border-b px-3.5 py-3;
+    @apply flex flex-wrap items-center justify-between gap-3 border-b px-3.5 py-3;
     border-color: var(--border);
   }
 
@@ -242,16 +243,16 @@
   }
 
   .map-toolbar p {
-    @apply mt-1 mb-0 text-[13px];
+    @apply mt-1 mb-0 text-[13px] leading-snug;
     color: var(--muted-text);
   }
 
   .map-toolbar-actions {
-    @apply flex flex-none items-center gap-2;
+    @apply flex flex-wrap items-center justify-end gap-2;
   }
 
   .palette-select {
-    @apply flex items-center gap-2 text-xs;
+    @apply flex items-center gap-2 text-xs leading-tight;
     color: var(--muted-text);
   }
 
@@ -280,7 +281,7 @@
   }
 
   .province-map-search label {
-    @apply grid gap-1 text-xs;
+    @apply grid gap-1 text-xs leading-tight;
     color: var(--muted-text);
   }
 
@@ -299,7 +300,7 @@
   }
 
   .province-suggestions button {
-    @apply grid min-h-9 items-center rounded-none border-0 px-2.5 text-left text-[13px];
+    @apply grid min-h-9 items-center rounded-none border-0 px-2.5 text-left text-[13px] leading-snug;
     background: var(--card-background);
     color: var(--text);
   }
@@ -315,7 +316,7 @@
   }
 
   .coordinate-search label {
-    @apply grid gap-1 text-xs;
+    @apply grid gap-1 text-xs leading-tight;
     color: var(--muted-text);
   }
 
@@ -328,7 +329,7 @@
   }
 
   .coordinate-search .map-pick-toggle {
-    @apply flex h-9 items-center gap-2 text-[13px];
+    @apply flex h-9 items-center gap-2 text-[13px] leading-tight;
     color: var(--text);
   }
 
@@ -338,7 +339,7 @@
   }
 
   .coordinate-result {
-    @apply border-b px-3.5 py-2.5 text-[13px];
+    @apply border-b px-3.5 py-2.5 text-[13px] leading-snug;
     border-color: var(--border);
     color: var(--muted-text);
   }
@@ -361,13 +362,13 @@
   }
 
   .charts-panel {
-    @apply overflow-hidden rounded-lg border transition-shadow;
+    @apply w-[640px] overflow-hidden rounded-lg border transition-shadow;
     background: var(--card-background);
     border-color: var(--border);
   }
 
   .panel-expanded .charts-panel {
-    @apply fixed inset-0 z-[1600] rounded-none border-0 shadow-none;
+    @apply fixed inset-0 z-[1600] w-auto rounded-none border-0 shadow-none;
   }
 
   .panel-expanded .map-area {
@@ -375,21 +376,21 @@
   }
 
   .summary-panel {
-    @apply grid h-full content-start gap-3 overflow-auto p-3;
+    @apply grid h-full content-start gap-4 overflow-auto p-4;
   }
 
   .panel-expanded .summary-panel {
-    @apply p-5;
+    @apply p-6;
   }
 
   .summary-header {
-    @apply flex items-center justify-between border-b pb-2 text-[11px] uppercase tracking-normal;
+    @apply flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-[11px] uppercase tracking-normal leading-tight;
     border-color: var(--border);
     color: var(--muted-text);
   }
 
   .summary-actions {
-    @apply flex items-center gap-2;
+    @apply flex flex-wrap items-center justify-end gap-2;
   }
 
   .summary-actions button {
@@ -400,11 +401,11 @@
   }
 
   .summary-content {
-    @apply grid gap-3;
+    @apply grid gap-4;
   }
 
   .summary-content.expanded {
-    @apply mx-auto w-full max-w-[1280px] items-start gap-3;
+    @apply mx-auto w-full max-w-[1480px] items-start gap-4;
     grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
   }
 
@@ -430,12 +431,12 @@
   }
 
   .summary-primary > div:first-child strong {
-    @apply overflow-hidden text-ellipsis whitespace-nowrap text-lg font-semibold leading-tight;
+    @apply break-words text-lg font-semibold leading-tight;
   }
 
   .summary-primary span,
   .summary-empty {
-    @apply m-0 text-[13px];
+    @apply m-0 text-[13px] leading-snug;
     color: var(--muted-text);
   }
 
@@ -451,7 +452,7 @@
 
   .summary-grid div,
   .coordinate-grid div {
-    @apply grid min-h-[54px] gap-[3px] rounded-md border p-2;
+    @apply grid min-h-[60px] gap-1 rounded-md border p-2 leading-tight;
     background: var(--toggle-background);
     border-color: var(--border);
   }
@@ -464,7 +465,7 @@
 
   .summary-grid dd,
   .coordinate-grid dd {
-    @apply m-0 text-sm font-semibold;
+    @apply m-0 break-words text-sm font-semibold leading-tight;
   }
 
   .chart-block {
@@ -477,11 +478,11 @@
   }
 
   .chart-header {
-    @apply flex items-center justify-between;
+    @apply flex flex-wrap items-center justify-between gap-1.5;
   }
 
   .chart-header h3 {
-    @apply m-0 text-sm font-semibold;
+    @apply m-0 text-sm font-semibold leading-tight;
   }
 
   .chart-header span {
@@ -495,7 +496,7 @@
 
   .time-window-picker {
     @apply grid items-center gap-2;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   }
 
   .time-window-picker > span {
@@ -511,7 +512,7 @@
   }
 
   .segmented-control button {
-    @apply min-h-8 border-0 px-2 text-xs font-semibold;
+    @apply min-h-8 border-0 px-2 text-xs font-semibold leading-tight;
     background: transparent;
     color: var(--muted-text);
   }
@@ -554,13 +555,13 @@
   }
 
   .line-chart-wrap {
-    @apply relative overflow-hidden rounded-md border;
+    @apply relative overflow-visible rounded-md border;
     background: var(--toggle-background);
     border-color: var(--border);
   }
 
   .line-chart-metric {
-    @apply absolute top-2 right-2 z-[1] grid justify-items-end gap-0.5 rounded-md border px-2 py-1 text-xs;
+    @apply absolute top-3 right-3 z-[1] grid justify-items-end gap-0.5 rounded-md border px-2.5 py-1.5 text-xs;
     background: color-mix(in srgb, var(--card-background) 86%, transparent);
     border-color: var(--border);
     color: var(--muted-text);
@@ -572,7 +573,7 @@
   }
 
   .line-chart-tooltip {
-    @apply pointer-events-none absolute z-[2] grid -translate-x-1/2 -translate-y-[calc(100%+12px)] gap-0.5 rounded-md border px-2 py-1.5 text-xs shadow-[0_10px_24px_rgba(15,23,42,0.18)];
+    @apply pointer-events-none absolute z-[2] grid -translate-x-1/2 -translate-y-[calc(100%+8px)] gap-0.5 rounded-md border px-2 py-1.5 text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
     background: var(--card-background);
     border-color: var(--border);
   }
@@ -586,11 +587,11 @@
   }
 
   .mini-line-chart {
-    @apply block h-[190px] w-full;
+    @apply block h-[230px] w-full;
   }
 
   .summary-content.expanded .mini-line-chart {
-    @apply h-[220px];
+    @apply h-[260px];
   }
 
   .chart-empty {
@@ -613,11 +614,11 @@
 
   .bar-row {
     @apply grid items-center gap-2;
-    grid-template-columns: minmax(76px, 0.9fr) minmax(80px, 1.4fr) auto;
+    grid-template-columns: minmax(88px, 0.9fr) minmax(80px, 1.4fr) auto;
   }
 
   .bar-row span {
-    @apply overflow-hidden text-ellipsis whitespace-nowrap text-[13px];
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-tight;
     color: var(--text);
   }
 
@@ -638,43 +639,40 @@
   }
 
   .numeric-bar-plot {
-    @apply relative grid h-64 w-full items-end gap-4 pt-5;
-    grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+    @apply relative w-full overflow-hidden rounded-md border p-2;
+    background: var(--card-background);
+    border-color: var(--border);
   }
 
-  .numeric-bar-plot::before {
-    @apply absolute right-0 bottom-[23px] left-0 h-px;
-    background: color-mix(in srgb, var(--muted-text) 32%, transparent);
-    content: "";
+  .bar-plot-chart {
+    @apply block h-[300px] min-w-0 w-full;
   }
 
-  .numeric-bar-column {
-    @apply grid min-w-0 justify-items-center gap-1;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+  .bar-plot-fill {
+    fill: var(--accent);
   }
 
-  .numeric-bar-column strong {
-    @apply text-[11px] font-semibold;
+  .bar-plot-fill:hover {
+    fill: color-mix(in srgb, var(--accent) 78%, var(--text));
+  }
+
+  .bar-plot-tooltip {
+    @apply pointer-events-none absolute z-[2] grid -translate-x-1/2 gap-0.5 rounded-md border px-2.5 py-1.5 text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
+    background: var(--card-background);
+    border-color: var(--border);
+  }
+
+  .bar-plot-tooltip strong {
+    @apply max-w-48 overflow-hidden text-ellipsis whitespace-nowrap;
+    color: var(--text);
+  }
+
+  .bar-plot-tooltip span {
     color: var(--muted-text);
   }
 
-  .numeric-bar-column span {
-    @apply max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px];
-    color: var(--muted-text);
-  }
-
-  .numeric-bar-track {
-    @apply flex h-full w-full items-end justify-center overflow-hidden;
-    background: transparent;
-  }
-
-  .numeric-bar-fill {
-    @apply w-[72%] min-w-6 rounded-t-md shadow-[0_-1px_0_rgba(255,255,255,0.28)_inset];
-    background: var(--accent);
-  }
-
-  .summary-content.expanded .numeric-bar-plot {
-    @apply h-72;
+  .summary-content.expanded .bar-plot-chart {
+    @apply h-[340px];
   }
 
   .organization-list {
@@ -724,7 +722,7 @@
 
   .pie-chart-wrap {
     @apply grid items-center gap-3;
-    grid-template-columns: minmax(0, 172px) minmax(0, 1fr);
+    grid-template-columns: minmax(128px, 172px) minmax(0, 1fr);
   }
 
   .pie-chart {
@@ -733,11 +731,11 @@
 
   .summary-content.expanded .pie-chart-wrap {
     @apply gap-5;
-    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
   }
 
   .summary-content.expanded .pie-chart {
-    @apply max-w-[300px];
+    @apply max-w-[240px];
   }
 
   .pie-legend {
@@ -754,7 +752,7 @@
   }
 
   .pie-legend-row strong {
-    @apply overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold;
+    @apply overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-tight;
   }
 
   .pie-legend-row em {
@@ -848,14 +846,28 @@
 .pie-chart-base {
   fill: transparent;
   stroke: var(--border);
-  stroke-width: 9;
+  stroke-width: 18;
 }
 
 .pie-chart-segment {
   fill: transparent;
-  stroke-width: 9;
+  stroke-linecap: butt;
+  stroke-width: 18;
   transform: rotate(-90deg);
   transform-origin: center;
+}
+
+.pie-chart-total {
+  fill: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.pie-chart-caption {
+  fill: var(--muted-text);
+  font-size: 10px;
+  text-anchor: middle;
 }
 
 @media (max-width: 820px) {
@@ -870,6 +882,10 @@
   .workspace,
   .workspace.panel-expanded {
     @apply grid-cols-1;
+  }
+
+  .charts-panel {
+    @apply w-full;
   }
 
   .workspace {
@@ -897,7 +913,19 @@
   }
 
   .province-map-search {
-    @apply top-[104px] right-2.5 left-2.5 flex-wrap;
+    @apply top-[98px] right-2.5 left-2.5 flex-wrap;
+  }
+
+  .coordinate-search label {
+    @apply min-w-[92px] flex-1;
+  }
+
+  .coordinate-search input {
+    @apply w-full;
+  }
+
+  .coordinate-search .map-pick-toggle {
+    @apply min-w-[128px] flex-none;
   }
 
   .province-map-search input {

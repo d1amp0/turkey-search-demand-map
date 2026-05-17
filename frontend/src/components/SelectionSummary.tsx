@@ -24,12 +24,36 @@ type ChartPoint = {
   searches: number;
 };
 
+const pieSegmentColors = [
+  "#0284c7",
+  "#f97316",
+  "#16a34a",
+  "#dc2626",
+  "#7c3aed",
+  "#0891b2",
+  "#ca8a04",
+  "#be123c",
+];
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
 function formatInteger(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
+}
+
+function formatAxisLabel(value: string, maxLength = 12) {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
+}
+
+function getYAxisTicks(max: number) {
+  const roundedMax = Math.round(max);
+  const roundedMid = Math.floor(max / 2);
+
+  return [roundedMax, roundedMid, 0]
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .filter((value) => value >= 0);
 }
 
 function MetricTile({
@@ -62,13 +86,13 @@ function MiniLineChart({
   const chart = useMemo(() => {
     const max = Math.max(...data.map((item) => item.searches), 0);
     const safeMax = Math.max(max, 1);
-    const width = isExpanded ? 1280 : 640;
-    const height = 210;
+    const width = isExpanded ? 1440 : 840;
+    const height = isExpanded ? 260 : 230;
     const padding = {
-      bottom: 30,
-      left: 48,
-      right: 14,
-      top: 18,
+      bottom: 36,
+      left: 56,
+      right: 24,
+      top: 34,
     };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
@@ -89,7 +113,6 @@ function MiniLineChart({
       coordinates,
       height,
       max,
-      mid: max / 2,
       padding,
       plotHeight,
       plotWidth,
@@ -105,11 +128,7 @@ function MiniLineChart({
 
   const firstLabel = data[0]?.label ?? "";
   const lastLabel = data.at(-1)?.label ?? "";
-  const yTicks = [
-    { label: formatInteger(chart.max), value: chart.max },
-    { label: formatInteger(chart.mid), value: chart.mid },
-    { label: "0", value: 0 },
-  ];
+  const yTicks = getYAxisTicks(chart.max);
   const hoveredPoint = hoveredIndex === null ? null : chart.coordinates[hoveredIndex];
 
   function getNearestPoint(clientX: number, target: SVGSVGElement) {
@@ -162,10 +181,10 @@ function MiniLineChart({
           const y =
             chart.padding.top +
             chart.plotHeight -
-            (tick.value / Math.max(chart.max, 1)) * chart.plotHeight;
+            (tick / Math.max(chart.max, 1)) * chart.plotHeight;
 
           return (
-            <g key={tick.label}>
+            <g key={tick}>
               <line
                 className="chart-grid-line"
                 x1={chart.padding.left}
@@ -174,7 +193,7 @@ function MiniLineChart({
                 y2={y}
               />
               <text className="chart-y-label" x={chart.padding.left - 8} y={y + 4}>
-                {tick.label}
+                {formatInteger(tick)}
               </text>
             </g>
           );
@@ -406,7 +425,8 @@ function BarList({
   data: Array<CategorySearchPoint | HourlySearchPoint>;
   getLabel: (item: CategorySearchPoint | HourlySearchPoint) => string;
 }) {
-  const max = Math.max(...data.map((item) => item.searches), 1);
+  const rawMax = Math.max(...data.map((item) => item.searches), 0);
+  const max = Math.max(rawMax, 1);
 
   return (
     <div className="bar-list">
@@ -430,26 +450,221 @@ function NumericBarPlot({
   data: Array<CategorySearchPoint | HourlySearchPoint>;
   getLabel: (item: CategorySearchPoint | HourlySearchPoint) => string;
 }) {
-  const max = Math.max(...data.map((item) => item.searches), 1);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
 
   if (!data.length) {
     return <p className="chart-empty">No data for this selection.</p>;
   }
 
+  const rawMax = Math.max(...data.map((item) => item.searches), 0);
+  const max = Math.max(rawMax, 1);
+  const width = 840;
+  const height = 340;
+  const padding = {
+    bottom: 56,
+    left: 60,
+    right: 28,
+    top: 28,
+  };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const slotWidth = plotWidth / data.length;
+  const barWidth = Math.max(12, Math.min(44, slotWidth * 0.68));
+  const yTicks = getYAxisTicks(rawMax);
+  const labelStep = data.length > 16 ? 3 : data.length > 10 ? 2 : 1;
+  const hoveredItem = hoveredIndex === null ? null : data[hoveredIndex];
+
+  function updateTooltip(
+    index: number,
+    x: number,
+    y: number,
+    target: SVGSVGElement,
+  ) {
+    const bounds = target.getBoundingClientRect();
+
+    setHoveredIndex(index);
+    setTooltipPosition({
+      left: clamp((x / width) * bounds.width, 96, bounds.width - 96),
+      top: clamp((y / height) * bounds.height + 12, 12, bounds.height - 56),
+    });
+  }
+
   return (
     <div className="numeric-bar-plot">
-      {data.map((item) => (
-        <div className="numeric-bar-column" key={getLabel(item)}>
-          <strong>{formatInteger(item.searches)}</strong>
-          <div className="numeric-bar-track">
-            <div
-              className="numeric-bar-fill"
-              style={{ height: `${Math.max((item.searches / max) * 100, 4)}%` }}
-            />
-          </div>
-          <span>{getLabel(item)}</span>
+      <svg
+        className="bar-plot-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        onMouseLeave={() => {
+          setHoveredIndex(null);
+          setTooltipPosition(null);
+        }}
+      >
+        {yTicks.map((tick) => {
+          const y = padding.top + plotHeight - (tick / max) * plotHeight;
+
+          return (
+            <g key={tick}>
+              <line
+                className="chart-grid-line"
+                x1={padding.left}
+                x2={padding.left + plotWidth}
+                y1={y}
+                y2={y}
+              />
+              <text className="chart-y-label" x={padding.left - 8} y={y + 4}>
+                {formatInteger(tick)}
+              </text>
+            </g>
+          );
+        })}
+        <line
+          className="chart-axis"
+          x1={padding.left}
+          x2={padding.left}
+          y1={padding.top}
+          y2={padding.top + plotHeight}
+        />
+        <line
+          className="chart-axis"
+          x1={padding.left}
+          x2={padding.left + plotWidth}
+          y1={padding.top + plotHeight}
+          y2={padding.top + plotHeight}
+        />
+        {data.map((item, index) => {
+          const label = getLabel(item);
+          const axisLabel = formatAxisLabel(label, data.length > 12 ? 8 : 12);
+          const barHeight = Math.max((item.searches / max) * plotHeight, 2);
+          const x = padding.left + index * slotWidth + (slotWidth - barWidth) / 2;
+          const y = padding.top + plotHeight - barHeight;
+          const shouldShowLabel = index % labelStep === 0 || index === data.length - 1;
+
+          return (
+            <g key={label}>
+              <rect
+                className="bar-plot-fill"
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                rx={4}
+                onMouseMove={(event) => {
+                  const svg = event.currentTarget.ownerSVGElement;
+
+                  if (svg) {
+                    updateTooltip(index, x + barWidth / 2, y, svg);
+                  }
+                }}
+              >
+                <title>{`${label}: ${formatInteger(item.searches)} requests`}</title>
+              </rect>
+              {shouldShowLabel ? (
+                <text
+                  className="chart-x-label"
+                  textAnchor="middle"
+                  x={x + barWidth / 2}
+                  y={height - 18}
+                >
+                  {axisLabel}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+      {hoveredItem && tooltipPosition ? (
+        <div
+          className="bar-plot-tooltip"
+          style={{
+            left: tooltipPosition.left,
+            top: tooltipPosition.top,
+          }}
+        >
+          <strong>{getLabel(hoveredItem)}</strong>
+          <span>{formatInteger(hoveredItem.searches)} requests</span>
         </div>
-      ))}
+      ) : null}
+    </div>
+  );
+}
+
+function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
+  const sortedData = [...data].sort((left, right) => right.searches - left.searches);
+  const mainCategories = sortedData.slice(0, 6);
+  const otherSearches = sortedData
+    .slice(6)
+    .reduce((sum, item) => sum + item.searches, 0);
+  const chartData =
+    otherSearches > 0
+      ? [...mainCategories, { category: "Other", searches: otherSearches }]
+      : mainCategories;
+  const total = chartData.reduce((sum, item) => sum + item.searches, 0);
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  if (!data.length || total <= 0) {
+    return <p className="chart-empty">No category data for this selection.</p>;
+  }
+
+  return (
+    <div className="pie-chart-wrap">
+      <svg className="pie-chart" viewBox="0 0 120 120" role="img">
+        <circle className="pie-chart-base" cx="60" cy="60" r={radius} />
+        {chartData.map((item, index) => {
+          const ratio = item.searches / total;
+          const dashLength = ratio * circumference;
+          const dashOffset = -offset;
+          const color = pieSegmentColors[index % pieSegmentColors.length];
+
+          offset += dashLength;
+
+          return (
+            <circle
+              className="pie-chart-segment"
+              cx="60"
+              cy="60"
+              key={item.category}
+              r={radius}
+              style={{
+                stroke: color,
+                strokeDasharray: `${dashLength} ${circumference - dashLength}`,
+                strokeDashoffset: dashOffset,
+              }}
+            >
+              <title>{`${item.category}: ${formatInteger(item.searches)} requests`}</title>
+            </circle>
+          );
+        })}
+        <text className="pie-chart-total" x="60" y="57">
+          {formatInteger(total)}
+        </text>
+        <text className="pie-chart-caption" x="60" y="72">
+          total
+        </text>
+      </svg>
+      <div className="pie-legend">
+        {chartData.map((item, index) => {
+          const percent = Math.round((item.searches / total) * 100);
+
+          return (
+            <div className="pie-legend-row" key={item.category}>
+              <span
+                style={{
+                  background: pieSegmentColors[index % pieSegmentColors.length],
+                }}
+              />
+              <strong title={item.category}>{item.category}</strong>
+              <em>{percent}%</em>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -666,6 +881,12 @@ export function SelectionSummary({
                   getLabel={(item) => "category" in item ? item.category : String(item.hour)}
                 />
               </div>
+              <div className="chart-block full-width-chart">
+                <div className="chart-header">
+                  <h3>Category distribution</h3>
+                </div>
+                <CategoryPieChart data={categoryBreakdown} />
+              </div>
               <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
                   <h3>Hourly distribution</h3>
@@ -710,6 +931,12 @@ export function SelectionSummary({
                   getLabel={(item) => "category" in item ? item.category : String(item.hour)}
                 />
               </div>
+              <div className="chart-block full-width-chart">
+                <div className="chart-header">
+                  <h3>Category distribution</h3>
+                </div>
+                <CategoryPieChart data={provinceDemand.category_breakdown} />
+              </div>
               <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
                   <h3>Hours</h3>
@@ -737,6 +964,12 @@ export function SelectionSummary({
                   data={overview.category_breakdown}
                   getLabel={(item) => "category" in item ? item.category : String(item.hour)}
                 />
+              </div>
+              <div className="chart-block full-width-chart">
+                <div className="chart-header">
+                  <h3>Category distribution</h3>
+                </div>
+                <CategoryPieChart data={overview.category_breakdown} />
               </div>
               <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
