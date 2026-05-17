@@ -37,6 +37,30 @@ function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function ratingTone(value: number) {
+  if (value >= 4) {
+    return "good";
+  }
+
+  if (value >= 3) {
+    return "warning";
+  }
+
+  return "bad";
+}
+
+function ratingLabel(value: number) {
+  if (value >= 4) {
+    return "High";
+  }
+
+  if (value >= 3) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
 function MetricTile({
   label,
   value,
@@ -576,9 +600,10 @@ export function SelectionSummary({
                 {selection?.provinceNumber ? subtitle : "Select a province for details"}
               </span>
             </div>
-            <div className="summary-primary-metric">
-              <span>Searches</span>
-              <strong>{formatInteger(summary.searches)}</strong>
+            <div className="summary-rating" data-tone={ratingTone(summary.avg_rating)}>
+              <span>Avg rating</span>
+              <strong>{summary.avg_rating.toFixed(2)}</strong>
+              <em>{ratingLabel(summary.avg_rating)}</em>
             </div>
           </div>
 
