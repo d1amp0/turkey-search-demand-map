@@ -254,8 +254,7 @@
     @apply flex flex-none items-center gap-2;
   }
 
-  .palette-select,
-  .palette-color {
+  .palette-select {
     @apply flex items-center gap-2 text-xs;
     color: var(--muted-text);
   }
@@ -266,12 +265,6 @@
     border-color: var(--border);
     color: var(--text);
     font: inherit;
-  }
-
-  .palette-color input {
-    @apply h-9 w-10 rounded-md border p-1 disabled:cursor-not-allowed disabled:opacity-45;
-    background: var(--card-background);
-    border-color: var(--border);
   }
 
   .refresh-button {
@@ -310,24 +303,19 @@
   }
 
   .province-suggestions button {
-    @apply grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-none border-0 px-2.5 text-left text-[13px];
+    @apply grid min-h-9 items-center rounded-none border-0 px-2.5 text-left text-[13px];
     background: var(--card-background);
     color: var(--text);
   }
 
   .province-suggestions button:hover,
-  .province-suggestions button:focus {
+  .province-suggestions button:focus,
+  .province-suggestions button.active {
     background: var(--toggle-background);
   }
 
   .province-suggestions span {
     @apply overflow-hidden text-ellipsis whitespace-nowrap;
-  }
-
-  .province-suggestions em {
-    @apply rounded-md px-1.5 py-0.5 text-[11px] not-italic;
-    background: var(--toggle-background);
-    color: var(--muted-text);
   }
 
   .coordinate-search label {

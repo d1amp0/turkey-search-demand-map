@@ -105,7 +105,6 @@ function colorForValue(
   max: number,
   theme: Theme,
   palette: HeatmapPalette,
-  customColor: string,
 ) {
   if (!Number.isFinite(value)) {
     return themePathColors[theme].emptyFill;
@@ -120,10 +119,6 @@ function colorForValue(
       paletteConfig.endColor ?? "#dc2626",
       ratio,
     );
-  }
-
-  if (paletteConfig.mode === "custom") {
-    return mixHexColors(themePathColors[theme].emptyFill, customColor, ratio);
   }
 
   const lightness = theme === "dark" ? 62 - ratio * 42 : 92 - ratio * 64;
@@ -149,17 +144,16 @@ function metricLabel(metric: DemandMetricKey) {
 
 function markerColors(
   palette: HeatmapPalette,
-  customColor: string,
   theme: Theme,
 ) {
-  if (palette === "greenRed" || palette === "orange") {
+  if (palette === "redGreen" || palette === "orange") {
     return {
       border: theme === "dark" ? "#f8fafc" : "#111827",
       fill: "#2563eb",
     };
   }
 
-  if (palette === "blue" || palette === "tealGold") {
+  if (palette === "blue") {
     return {
       border: theme === "dark" ? "#f8fafc" : "#111827",
       fill: "#f97316",
@@ -170,16 +164,6 @@ function markerColors(
     return {
       border: theme === "dark" ? "#f8fafc" : "#111827",
       fill: "#22c55e",
-    };
-  }
-
-  if (palette === "custom") {
-    const { b, g, r } = hexToRgb(customColor);
-    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-
-    return {
-      border: luminance > 0.55 ? "#111827" : "#f8fafc",
-      fill: luminance > 0.55 ? "#7c3aed" : "#facc15",
     };
   }
 
@@ -346,19 +330,15 @@ function CoordinatePicker({
 
 export function TurkeyMap({
   filters,
-  customHeatmapColor,
   heatmapPalette,
   theme,
   onHeatmapPaletteChange,
-  onCustomHeatmapColorChange,
   onSelectionChange,
 }: {
   filters: DemandFilters;
-  customHeatmapColor: string;
   heatmapPalette: HeatmapPalette;
   theme: Theme;
   onHeatmapPaletteChange: (palette: HeatmapPalette) => void;
-  onCustomHeatmapColorChange: (color: string) => void;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
 }) {
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
@@ -373,14 +353,14 @@ export function TurkeyMap({
     longitude: number;
   } | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
-  const [isCustomColorPickerActive, setIsCustomColorPickerActive] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [isProvinceSearchOpen, setIsProvinceSearchOpen] = useState(false);
   const [provinceSearch, setProvinceSearch] = useState("");
   const [selectedProvinceNumber, setSelectedProvinceNumber] = useState<number | null>(
     null,
   );
   const activeMetric = filters.metric;
-  const activeMarkerColors = markerColors(heatmapPalette, customHeatmapColor, theme);
+  const activeMarkerColors = markerColors(heatmapPalette, theme);
 
   const provinceSuggestions = useMemo<ProvinceSuggestion[]>(() => {
     const query = provinceSearch.trim();
@@ -398,6 +378,10 @@ export function TurkeyMap({
       .sort((left, right) => left.distance - right.distance || left.name.localeCompare(right.name))
       .slice(0, 5);
   }, [geoJson, provinceSearch]);
+
+  useEffect(() => {
+    setActiveSuggestionIndex(0);
+  }, [provinceSuggestions]);
 
   const valueRange = useMemo(() => {
     const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
@@ -467,13 +451,11 @@ export function TurkeyMap({
           valueRange.max,
           theme,
           heatmapPalette,
-          customHeatmapColor,
         ),
         ...(provinceNumber === selectedProvinceNumber ? selectedStyle(theme) : {}),
       };
     },
     [
-      customHeatmapColor,
       heatmapPalette,
       regionData,
       selectedProvinceNumber,
@@ -502,19 +484,11 @@ export function TurkeyMap({
 
       layer.on({
         mouseout: () => {
-          if (heatmapPalette === "custom" && isCustomColorPickerActive) {
-            return;
-          }
-
           if ("setStyle" in layer) {
             (layer as Path).setStyle(styleRegion(feature));
           }
         },
         mouseover: () => {
-          if (heatmapPalette === "custom" && isCustomColorPickerActive) {
-            return;
-          }
-
           if ("setStyle" in layer) {
             (layer as Path).setStyle(
               feature.properties.number === selectedProvinceNumber
@@ -537,8 +511,6 @@ export function TurkeyMap({
     },
     [
       activeMetric,
-      heatmapPalette,
-      isCustomColorPickerActive,
       regionData,
       selectProvince,
       selectedProvinceNumber,
@@ -636,18 +608,6 @@ export function TurkeyMap({
               ))}
             </select>
           </label>
-          <label className="palette-color">
-            <span>Color</span>
-            <input
-              disabled={heatmapPalette !== "custom"}
-              type="color"
-              value={customHeatmapColor}
-              onBlur={() => setIsCustomColorPickerActive(false)}
-              onChange={(event) => onCustomHeatmapColorChange(event.target.value)}
-              onFocus={() => setIsCustomColorPickerActive(true)}
-              onPointerDown={() => setIsCustomColorPickerActive(true)}
-            />
-          </label>
           <button className="refresh-button" type="button" onClick={refreshData}>
             Refresh
           </button>
@@ -688,19 +648,52 @@ export function TurkeyMap({
                 setIsProvinceSearchOpen(true);
               }}
               onFocus={() => setIsProvinceSearchOpen(true)}
+              onKeyDown={(event) => {
+                if (!provinceSuggestions.length) {
+                  return;
+                }
+
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setIsProvinceSearchOpen(true);
+                  setActiveSuggestionIndex((index) =>
+                    Math.min(index + 1, provinceSuggestions.length - 1),
+                  );
+                }
+
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setIsProvinceSearchOpen(true);
+                  setActiveSuggestionIndex((index) => Math.max(index - 1, 0));
+                }
+
+                if (event.key === "Enter" && isProvinceSearchOpen) {
+                  event.preventDefault();
+                  const activeSuggestion = provinceSuggestions[activeSuggestionIndex];
+
+                  if (activeSuggestion) {
+                    selectProvince(activeSuggestion);
+                  }
+                }
+
+                if (event.key === "Escape") {
+                  setIsProvinceSearchOpen(false);
+                }
+              }}
             />
           </label>
           <button type="submit">Find</button>
           {isProvinceSearchOpen && provinceSuggestions.length ? (
             <div className="province-suggestions">
-              {provinceSuggestions.map((province) => (
+              {provinceSuggestions.map((province, index) => (
                 <button
+                  className={index === activeSuggestionIndex ? "active" : ""}
                   key={province.number}
                   type="button"
                   onClick={() => selectProvince(province)}
+                  onMouseEnter={() => setActiveSuggestionIndex(index)}
                 >
                   <span>{province.name}</span>
-                  <em>{province.distance}</em>
                 </button>
               ))}
             </div>
@@ -761,7 +754,7 @@ export function TurkeyMap({
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${customHeatmapColor}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}

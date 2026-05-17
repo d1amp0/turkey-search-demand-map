@@ -3,16 +3,14 @@ export type HeatmapPalette =
   | "green"
   | "orange"
   | "purple"
-  | "greenRed"
-  | "tealGold"
-  | "custom";
+  | "redGreen";
 
 export type HeatmapPaletteConfig = {
   accent: string;
   endColor?: string;
   hue?: number;
   label: string;
-  mode: "hue" | "gradient" | "custom";
+  mode: "hue" | "gradient";
   saturation?: number;
   startColor?: string;
 };
@@ -46,23 +44,11 @@ export const heatmapPalettes: Record<HeatmapPalette, HeatmapPaletteConfig> = {
     mode: "hue",
     saturation: 78,
   },
-  greenRed: {
-    accent: "#dc2626",
-    endColor: "#dc2626",
-    label: "Green-red",
+  redGreen: {
+    accent: "#16a34a",
+    endColor: "#16a34a",
+    label: "Red-green",
     mode: "gradient",
-    startColor: "#16a34a",
-  },
-  tealGold: {
-    accent: "#ca8a04",
-    endColor: "#ca8a04",
-    label: "Teal-gold",
-    mode: "gradient",
-    startColor: "#0f766e",
-  },
-  custom: {
-    accent: "#0284c7",
-    label: "Custom",
-    mode: "custom",
+    startColor: "#dc2626",
   },
 };
