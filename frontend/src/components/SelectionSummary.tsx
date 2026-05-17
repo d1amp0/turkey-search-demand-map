@@ -12,7 +12,6 @@ import type {
 } from "../types/region";
 import type { CoordinateMatch } from "../types/selection";
 
-const chartColors = ["#0284c7", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"];
 const timeWindowOptions = [
   { key: "day", label: "Day", durationHours: 24 },
   { key: "week", label: "Week", durationHours: 24 * 7 },
@@ -31,10 +30,6 @@ function clamp(value: number, min: number, max: number) {
 
 function formatInteger(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
-}
-
-function formatPercent(value: number) {
-  return `${Math.round(value * 100)}%`;
 }
 
 function ratingTone(value: number) {
@@ -77,6 +72,7 @@ function MetricTile({
 }
 
 function MiniLineChart({ data }: { data: ChartPoint[] }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const chart = useMemo(() => {
     const max = Math.max(...data.map((item) => item.searches), 0);
     const safeMax = Math.max(max, 1);
@@ -128,6 +124,25 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
     { label: formatInteger(chart.mid), value: chart.mid },
     { label: "0", value: 0 },
   ];
+  const hoveredPoint = hoveredIndex === null ? null : chart.coordinates[hoveredIndex];
+
+  function getNearestPoint(clientX: number, target: SVGSVGElement) {
+    const bounds = target.getBoundingClientRect();
+    const viewBoxX = ((clientX - bounds.left) / bounds.width) * chart.width;
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    chart.coordinates.forEach((point, index) => {
+      const distance = Math.abs(point.x - viewBoxX);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    return nearestIndex;
+  }
 
   return (
     <div className="line-chart-wrap">
@@ -139,6 +154,10 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
         className="mini-line-chart"
         viewBox={`0 0 ${chart.width} ${chart.height}`}
         role="img"
+        onMouseLeave={() => setHoveredIndex(null)}
+        onMouseMove={(event) =>
+          setHoveredIndex(getNearestPoint(event.clientX, event.currentTarget))
+        }
       >
         {yTicks.map((tick) => {
           const y =
@@ -187,6 +206,23 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
             <title>{`${item.label}: ${formatInteger(item.searches)}`}</title>
           </circle>
         ))}
+        {hoveredPoint ? (
+          <>
+            <line
+              className="chart-hover-line"
+              x1={hoveredPoint.x}
+              x2={hoveredPoint.x}
+              y1={chart.padding.top}
+              y2={chart.padding.top + chart.plotHeight}
+            />
+            <circle
+              className="chart-hover-point"
+              cx={hoveredPoint.x}
+              cy={hoveredPoint.y}
+              r={5}
+            />
+          </>
+        ) : null}
         <text
           className="chart-x-label"
           x={chart.padding.left}
@@ -202,6 +238,18 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
           {lastLabel}
         </text>
       </svg>
+      {hoveredPoint ? (
+        <div
+          className="line-chart-tooltip"
+          style={{
+            left: `${(hoveredPoint.x / chart.width) * 100}%`,
+            top: `${(hoveredPoint.y / chart.height) * 100}%`,
+          }}
+        >
+          <strong>{hoveredPoint.label}</strong>
+          <span>{formatInteger(hoveredPoint.searches)} requests</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -352,70 +400,6 @@ function aggregateTimeSeries(
   };
 }
 
-function topPieCategories(data: CategorySearchPoint[]) {
-  const visible = data.slice(0, 5);
-  const otherSearches = data
-    .slice(5)
-    .reduce((sum, item) => sum + item.searches, 0);
-
-  if (!otherSearches) {
-    return visible;
-  }
-
-  return [
-    ...visible,
-    {
-      category: "Other",
-      searches: otherSearches,
-    },
-  ];
-}
-
-function PieChart({ data }: { data: CategorySearchPoint[] }) {
-  const chartData = topPieCategories(data);
-  const total = chartData.reduce((sum, item) => sum + item.searches, 0);
-  let offset = 25;
-
-  if (!total) {
-    return null;
-  }
-
-  return (
-    <div className="pie-chart-wrap">
-      <svg className="pie-chart" viewBox="0 0 42 42" role="img">
-        <circle className="pie-chart-base" cx="21" cy="21" r="15.915" />
-        {chartData.map((item, index) => {
-          const share = (item.searches / total) * 100;
-          const segment = (
-            <circle
-              className="pie-chart-segment"
-              cx="21"
-              cy="21"
-              key={item.category}
-              r="15.915"
-              stroke={chartColors[index % chartColors.length]}
-              strokeDasharray={`${share} ${100 - share}`}
-              strokeDashoffset={offset}
-            />
-          );
-
-          offset -= share;
-          return segment;
-        })}
-      </svg>
-      <div className="pie-legend">
-        {chartData.map((item, index) => (
-          <div className="pie-legend-row" key={item.category}>
-            <span style={{ background: chartColors[index % chartColors.length] }} />
-            <strong>{item.category}</strong>
-            <em>{formatPercent(item.searches / total)}</em>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function BarList({
   data,
   getLabel,
@@ -434,6 +418,34 @@ function BarList({
             <div style={{ width: `${(item.searches / max) * 100}%` }} />
           </div>
           <strong>{formatInteger(item.searches)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NumericBarPlot({
+  data,
+  getLabel,
+}: {
+  data: Array<CategorySearchPoint | HourlySearchPoint>;
+  getLabel: (item: CategorySearchPoint | HourlySearchPoint) => string;
+}) {
+  const max = Math.max(...data.map((item) => item.searches), 1);
+
+  if (!data.length) {
+    return <p className="chart-empty">No data for this selection.</p>;
+  }
+
+  return (
+    <div className="numeric-bar-plot">
+      {data.map((item) => (
+        <div className="numeric-bar-column" key={getLabel(item)}>
+          <strong>{formatInteger(item.searches)}</strong>
+          <div className="numeric-bar-track">
+            <div style={{ height: `${(item.searches / max) * 100}%` }} />
+          </div>
+          <span>{getLabel(item)}</span>
         </div>
       ))}
     </div>
@@ -550,7 +562,7 @@ export function SelectionSummary({
 
   const activeData = provinceDemand ?? overview;
   const summary = getSummary(activeData);
-  const timeSeries = activeData?.time_series ?? [];
+  const timeSeries = useMemo(() => activeData?.time_series ?? [], [activeData?.time_series]);
   const categoryBreakdown = activeData?.category_breakdown ?? [];
   const hourlyDistribution = activeData?.hourly_distribution ?? [];
   const topOrganizations = (activeData?.top_organizations ?? []).slice(0, 5);
@@ -656,17 +668,20 @@ export function SelectionSummary({
 
           {isExpanded ? (
             <div className="expanded-chart-grid">
-              <div className="chart-block">
+              <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
                   <h3>Request types</h3>
                 </div>
-                <PieChart data={categoryBreakdown} />
+                <NumericBarPlot
+                  data={categoryBreakdown}
+                  getLabel={(item) => "category" in item ? item.category : String(item.hour)}
+                />
               </div>
-              <div className="chart-block">
+              <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
                   <h3>Hourly distribution</h3>
                 </div>
-                <BarList
+                <NumericBarPlot
                   data={hourlyDistribution}
                   getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
                 />
@@ -697,20 +712,20 @@ export function SelectionSummary({
             </div>
           ) : provinceDemand ? (
             <>
-              <div className="chart-block">
+              <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
                   <h3>Categories</h3>
                 </div>
-                <BarList
+                <NumericBarPlot
                   data={provinceDemand.category_breakdown}
                   getLabel={(item) => "category" in item ? item.category : String(item.hour)}
                 />
               </div>
-              <div className="chart-block">
+              <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
                   <h3>Hours</h3>
                 </div>
-                <BarList
+                <NumericBarPlot
                   data={provinceDemand.hourly_distribution}
                   getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
                 />

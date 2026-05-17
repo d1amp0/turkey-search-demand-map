@@ -107,7 +107,7 @@
 
   .metric-popover,
   .organizations-popover {
-    @apply w-64;
+    @apply max-h-[min(420px,calc(100vh-80px))] w-64 overflow-hidden;
   }
 
   .time-popover {
@@ -164,6 +164,10 @@
   .province-list,
   .stacked-options {
     @apply grid gap-2.5;
+  }
+
+  .organization-list-options {
+    @apply grid max-h-[280px] gap-2.5 overflow-auto pr-1;
   }
 
   .province-list {
@@ -400,8 +404,8 @@
   }
 
   .summary-content.expanded {
-    @apply mx-auto w-full max-w-[1440px] items-start gap-4;
-    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+    @apply mx-auto w-full max-w-[1280px] items-start gap-3;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
   }
 
   .summary-content.expanded .summary-primary,
@@ -516,6 +520,10 @@
     border-color: var(--border);
   }
 
+  .full-width-bar-chart {
+    @apply w-full;
+  }
+
   .chart-header {
     @apply flex items-center justify-between;
   }
@@ -611,12 +619,26 @@
     color: var(--text);
   }
 
+  .line-chart-tooltip {
+    @apply pointer-events-none absolute z-[2] grid -translate-x-1/2 -translate-y-[calc(100%+12px)] gap-0.5 rounded-md border px-2 py-1.5 text-xs shadow-[0_10px_24px_rgba(15,23,42,0.18)];
+    background: var(--card-background);
+    border-color: var(--border);
+  }
+
+  .line-chart-tooltip strong {
+    color: var(--text);
+  }
+
+  .line-chart-tooltip span {
+    color: var(--muted-text);
+  }
+
   .mini-line-chart {
     @apply block h-[190px] w-full;
   }
 
   .summary-content.expanded .mini-line-chart {
-    @apply h-[260px];
+    @apply h-[220px];
   }
 
   .chart-empty {
@@ -663,6 +685,46 @@
     background: var(--accent);
   }
 
+  .numeric-bar-plot {
+    @apply relative grid h-64 w-full items-end gap-4 pt-5;
+    grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+  }
+
+  .numeric-bar-plot::before {
+    @apply absolute right-0 bottom-[23px] left-0 h-px;
+    background: color-mix(in srgb, var(--muted-text) 32%, transparent);
+    content: "";
+  }
+
+  .numeric-bar-column {
+    @apply grid min-w-0 justify-items-center gap-1;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .numeric-bar-column strong {
+    @apply text-[11px] font-semibold;
+    color: var(--muted-text);
+  }
+
+  .numeric-bar-column span {
+    @apply max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px];
+    color: var(--muted-text);
+  }
+
+  .numeric-bar-track {
+    @apply flex h-full w-full items-end justify-center overflow-hidden;
+    background: transparent;
+  }
+
+  .numeric-bar-track div {
+    @apply w-[72%] min-w-6 rounded-t-md;
+    background: var(--accent);
+  }
+
+  .summary-content.expanded .numeric-bar-plot {
+    @apply h-72;
+  }
+
   .organization-list {
     @apply grid gap-2;
   }
@@ -694,8 +756,8 @@
   }
 
   .expanded-chart-grid {
-    @apply col-span-full grid gap-4;
-    grid-template-columns: minmax(440px, 1.15fr) minmax(300px, 0.85fr);
+    @apply col-span-full grid gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .expanded-chart-grid .chart-block {
@@ -704,8 +766,8 @@
     border-color: var(--border);
   }
 
-  .expanded-chart-grid .chart-block:first-child {
-    @apply row-span-2;
+  .summary-content:not(.expanded) .full-width-bar-chart {
+    @apply col-span-full;
   }
 
   .pie-chart-wrap {
@@ -805,6 +867,18 @@
   stroke-width: 2;
 }
 
+.chart-hover-line {
+  stroke: color-mix(in srgb, var(--accent) 52%, transparent);
+  stroke-dasharray: 4 4;
+  stroke-width: 1.2;
+}
+
+.chart-hover-point {
+  fill: var(--accent);
+  stroke: var(--card-background);
+  stroke-width: 2;
+}
+
 .chart-x-label,
 .chart-y-label {
   fill: var(--muted-text);
@@ -888,6 +962,10 @@
 
   .summary-rating {
     @apply justify-items-start;
+  }
+
+  .expanded-chart-grid .full-width-bar-chart {
+    @apply col-span-full;
   }
 
   .summary-content.expanded,
