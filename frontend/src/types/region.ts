@@ -54,6 +54,18 @@ export type HourlySearchPoint = {
   searches: number;
 };
 
+export type TimeSearchPoint = {
+  timestamp: string;
+  searches: number;
+};
+
+export type TopOrganization = {
+  name: string;
+  category: string;
+  rating: number;
+  searches: number;
+};
+
 export type TopProvince = {
   province_number: number;
   name: string;
@@ -67,16 +79,20 @@ export type DemandOverviewResponse = {
   summary: DemandSummary;
   top_provinces: TopProvince[];
   daily_searches: DailySearchPoint[];
+  time_series: TimeSearchPoint[];
   category_breakdown: CategorySearchPoint[];
   hourly_distribution: HourlySearchPoint[];
+  top_organizations: TopOrganization[];
 };
 
 export type ProvinceDemandResponse = {
   updated_at: string;
   province_number: number;
   name: string;
-  summary: DemandSummary;
+  summary: DemandSummary | null;
   daily_searches: DailySearchPoint[];
+  time_series: TimeSearchPoint[];
   category_breakdown: CategorySearchPoint[];
   hourly_distribution: HourlySearchPoint[];
+  top_organizations: TopOrganization[];
 };

@@ -1,36 +1,68 @@
-export type HeatmapPalette = "blue" | "green" | "orange" | "purple";
+export type HeatmapPalette =
+  | "blue"
+  | "green"
+  | "orange"
+  | "purple"
+  | "greenRed"
+  | "tealGold"
+  | "custom";
 
-export const heatmapPalettes: Record<
-  HeatmapPalette,
-  {
-    label: string;
-    hue: number;
-    saturation: number;
-    accent: string;
-  }
-> = {
+export type HeatmapPaletteConfig = {
+  accent: string;
+  endColor?: string;
+  hue?: number;
+  label: string;
+  mode: "hue" | "gradient" | "custom";
+  saturation?: number;
+  startColor?: string;
+};
+
+export const heatmapPalettes: Record<HeatmapPalette, HeatmapPaletteConfig> = {
   blue: {
-    label: "Blue",
-    hue: 199,
-    saturation: 86,
     accent: "#0284c7",
+    hue: 199,
+    label: "Blue",
+    mode: "hue",
+    saturation: 86,
   },
   green: {
-    label: "Green",
-    hue: 151,
-    saturation: 72,
     accent: "#16a34a",
+    hue: 151,
+    label: "Green",
+    mode: "hue",
+    saturation: 72,
   },
   orange: {
-    label: "Orange",
-    hue: 32,
-    saturation: 92,
     accent: "#ea580c",
+    hue: 32,
+    label: "Orange",
+    mode: "hue",
+    saturation: 92,
   },
   purple: {
-    label: "Purple",
-    hue: 267,
-    saturation: 78,
     accent: "#7c3aed",
+    hue: 267,
+    label: "Purple",
+    mode: "hue",
+    saturation: 78,
+  },
+  greenRed: {
+    accent: "#dc2626",
+    endColor: "#dc2626",
+    label: "Green-red",
+    mode: "gradient",
+    startColor: "#16a34a",
+  },
+  tealGold: {
+    accent: "#ca8a04",
+    endColor: "#ca8a04",
+    label: "Teal-gold",
+    mode: "gradient",
+    startColor: "#0f766e",
+  },
+  custom: {
+    accent: "#0284c7",
+    label: "Custom",
+    mode: "custom",
   },
 };

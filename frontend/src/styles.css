@@ -254,7 +254,8 @@
     @apply flex flex-none items-center gap-2;
   }
 
-  .palette-select {
+  .palette-select,
+  .palette-color {
     @apply flex items-center gap-2 text-xs;
     color: var(--muted-text);
   }
@@ -265,6 +266,12 @@
     border-color: var(--border);
     color: var(--text);
     font: inherit;
+  }
+
+  .palette-color input {
+    @apply h-9 w-10 rounded-md border p-1 disabled:cursor-not-allowed disabled:opacity-45;
+    background: var(--card-background);
+    border-color: var(--border);
   }
 
   .refresh-button {
@@ -450,6 +457,52 @@
     color: var(--muted-text);
   }
 
+  .chart-controls,
+  .organization-controls {
+    @apply grid gap-2;
+  }
+
+  .segmented-control {
+    @apply grid grid-cols-4 gap-1 rounded-lg border p-[3px];
+    background: var(--toggle-background);
+    border-color: var(--border);
+  }
+
+  .segmented-control button {
+    @apply min-h-7 border-0 px-2 text-xs;
+    background: transparent;
+    color: var(--muted-text);
+  }
+
+  .segmented-control button.active {
+    background: var(--toggle-button-active);
+    box-shadow: var(--toggle-button-active-shadow);
+    color: var(--text);
+  }
+
+  .chart-controls input[type="range"] {
+    @apply w-full;
+    accent-color: var(--accent);
+  }
+
+  .organization-controls {
+    @apply grid-cols-[minmax(0,1fr)_72px];
+  }
+
+  .organization-controls label {
+    @apply grid gap-1 text-xs;
+    color: var(--muted-text);
+  }
+
+  .organization-controls select,
+  .organization-controls input {
+    @apply h-9 min-w-0 rounded-md border px-2.5;
+    background: var(--card-background);
+    border-color: var(--border);
+    color: var(--text);
+    font: inherit;
+  }
+
   .mini-line-chart {
     @apply h-[84px] w-full rounded-md border;
     background: var(--toggle-background);
@@ -488,6 +541,36 @@
   .bar-track div {
     @apply h-full;
     background: var(--accent);
+  }
+
+  .organization-list {
+    @apply grid gap-2;
+  }
+
+  .organization-row {
+    @apply grid items-center gap-2 rounded-md border p-2;
+    background: var(--toggle-background);
+    border-color: var(--border);
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .organization-row div {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .organization-row strong {
+    @apply overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-tight;
+  }
+
+  .organization-row span {
+    @apply text-xs;
+    color: var(--muted-text);
+  }
+
+  .organization-row em {
+    @apply rounded-md px-2 py-1 text-xs font-bold not-italic;
+    background: color-mix(in srgb, var(--accent) 14%, var(--toggle-background));
+    color: var(--text);
   }
 
   .expanded-chart-grid {
@@ -638,6 +721,10 @@
 
   .summary-content.expanded .summary-grid {
     @apply grid-cols-2;
+  }
+
+  .organization-controls {
+    @apply grid-cols-1;
   }
 
   .pie-chart-wrap {

@@ -4,14 +4,28 @@ import type { DemandFilters } from "../types/filters";
 import type { HeatmapPalette } from "../types/palette";
 import type {
   CategorySearchPoint,
-  DailySearchPoint,
   DemandOverviewResponse,
   HourlySearchPoint,
   ProvinceDemandResponse,
+  TimeSearchPoint,
+  TopOrganization,
 } from "../types/region";
 import type { CoordinateMatch } from "../types/selection";
 
 const chartColors = ["#0284c7", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"];
+const timeWindowOptions = [
+  { key: "hour", label: "Hour", durationHours: 1 },
+  { key: "day", label: "Day", durationHours: 24 },
+  { key: "week", label: "Week", durationHours: 24 * 7 },
+  { key: "month", label: "Month", durationHours: 24 * 30 },
+] as const;
+const organizationCategories = ["all", "restaurants", "hotels", "clinics", "transport", "shops"];
+
+type TimeWindowKey = (typeof timeWindowOptions)[number]["key"];
+type ChartPoint = {
+  label: string;
+  searches: number;
+};
 
 function formatInteger(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
@@ -38,7 +52,7 @@ function MetricTile({
   );
 }
 
-function MiniLineChart({ data }: { data: DailySearchPoint[] }) {
+function MiniLineChart({ data }: { data: ChartPoint[] }) {
   const points = useMemo(() => {
     const max = Math.max(...data.map((item) => item.searches), 1);
 
@@ -56,6 +70,76 @@ function MiniLineChart({ data }: { data: DailySearchPoint[] }) {
       <polyline points={points} />
     </svg>
   );
+}
+
+function aggregateTimeSeries(
+  data: TimeSearchPoint[],
+  windowKey: TimeWindowKey,
+  offset: number,
+) {
+  if (!data.length) {
+    return {
+      maxOffset: 0,
+      points: [] as ChartPoint[],
+      rangeLabel: "",
+    };
+  }
+
+  const sorted = [...data].sort((left, right) =>
+    left.timestamp.localeCompare(right.timestamp),
+  );
+  const windowOption =
+    timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
+  const startTime = new Date(sorted[0].timestamp).getTime();
+  const endTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
+  const hourMs = 60 * 60 * 1000;
+  const durationMs = windowOption.durationHours * hourMs;
+  const maxOffset = Math.max(0, Math.ceil((endTime - startTime - durationMs) / hourMs));
+  const safeOffset = Math.min(offset, maxOffset);
+  const selectedStart = startTime + safeOffset * hourMs;
+  const selectedEnd = selectedStart + durationMs;
+  const selected = sorted.filter((item) => {
+    const timestamp = new Date(item.timestamp).getTime();
+    return timestamp >= selectedStart && timestamp < selectedEnd;
+  });
+  const bucket = new Map<string, number>();
+  const labelFormatter =
+    windowKey === "hour" || windowKey === "day"
+      ? new Intl.DateTimeFormat("en-US", {
+          day: "2-digit",
+          hour: "2-digit",
+          month: "short",
+        })
+      : new Intl.DateTimeFormat("en-US", {
+          day: "2-digit",
+          month: "short",
+        });
+
+  selected.forEach((item) => {
+    const timestamp = new Date(item.timestamp);
+    const key =
+      windowKey === "hour" || windowKey === "day"
+        ? timestamp.toISOString().slice(0, 13)
+        : timestamp.toISOString().slice(0, 10);
+
+    bucket.set(key, (bucket.get(key) ?? 0) + item.searches);
+  });
+
+  const points = Array.from(bucket.entries()).map(([key, searches]) => ({
+    label: labelFormatter.format(new Date(windowKey === "hour" || windowKey === "day" ? `${key}:00:00` : key)),
+    searches,
+  }));
+  const rangeFormatter = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    hour: windowKey === "month" || windowKey === "week" ? undefined : "2-digit",
+    month: "short",
+  });
+
+  return {
+    maxOffset,
+    points,
+    rangeLabel: `${rangeFormatter.format(new Date(selectedStart))} - ${rangeFormatter.format(new Date(Math.min(selectedEnd, endTime)))}`,
+  };
 }
 
 function PieChart({ data }: { data: CategorySearchPoint[] }) {
@@ -126,19 +210,28 @@ function BarList({
   );
 }
 
-function getSummary(data: DemandOverviewResponse | ProvinceDemandResponse | null) {
-  return data?.summary ?? null;
-}
-
-function formatDate(value: string | undefined) {
-  if (!value) {
-    return "";
+function OrganizationList({ data }: { data: TopOrganization[] }) {
+  if (!data.length) {
+    return <p className="summary-empty">No organizations for this selection.</p>;
   }
 
-  return new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "short",
-  }).format(new Date(value));
+  return (
+    <div className="organization-list">
+      {data.map((organization) => (
+        <div className="organization-row" key={`${organization.name}-${organization.category}`}>
+          <div>
+            <strong>{organization.name}</strong>
+            <span>{organization.category}</span>
+          </div>
+          <em>{organization.rating.toFixed(2)}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getSummary(data: DemandOverviewResponse | ProvinceDemandResponse | null) {
+  return data?.summary ?? null;
 }
 
 function ratingTone(value: number) {
@@ -206,6 +299,10 @@ export function SelectionSummary({
   const [provinceDemand, setProvinceDemand] =
     useState<ProvinceDemandResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [timeWindow, setTimeWindow] = useState<TimeWindowKey>("day");
+  const [timeOffset, setTimeOffset] = useState(0);
+  const [organizationCategory, setOrganizationCategory] = useState("all");
+  const [organizationLimit, setOrganizationLimit] = useState(5);
 
   useEffect(() => {
     void fetchDemandOverview(filters)
@@ -237,9 +334,19 @@ export function SelectionSummary({
 
   const activeData = provinceDemand ?? overview;
   const summary = getSummary(activeData);
-  const dailySearches = activeData?.daily_searches ?? [];
+  const timeSeries = activeData?.time_series ?? [];
   const categoryBreakdown = activeData?.category_breakdown ?? [];
   const hourlyDistribution = activeData?.hourly_distribution ?? [];
+  const filteredOrganizations = (activeData?.top_organizations ?? [])
+    .filter((organization) =>
+      organizationCategory === "all" ? true : organization.category === organizationCategory,
+    )
+    .slice(0, organizationLimit);
+  const timeChart = useMemo(
+    () => aggregateTimeSeries(timeSeries, timeWindow, timeOffset),
+    [timeOffset, timeSeries, timeWindow],
+  );
+  const hasInsufficientProvinceData = Boolean(provinceDemand && !provinceDemand.summary);
   const title = provinceDemand?.name ?? "Turkey overview";
   const subtitle = provinceDemand
     ? `Province ${provinceDemand.province_number}`
@@ -301,10 +408,72 @@ export function SelectionSummary({
 
           <div className="chart-block line-chart-block">
             <div className="chart-header">
-              <h3>30-day demand</h3>
-              <span>{formatDate(dailySearches.at(-1)?.date)}</span>
+              <h3>Search requests</h3>
+              <span>{timeChart.rangeLabel}</span>
             </div>
-            <MiniLineChart data={dailySearches} />
+            <div className="chart-controls">
+              <div className="segmented-control">
+                {timeWindowOptions.map((option) => (
+                  <button
+                    className={timeWindow === option.key ? "active" : ""}
+                    key={option.key}
+                    type="button"
+                    onClick={() => {
+                      setTimeWindow(option.key);
+                      setTimeOffset(0);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                aria-label="Time window"
+                max={timeChart.maxOffset}
+                min={0}
+                type="range"
+                value={Math.min(timeOffset, timeChart.maxOffset)}
+                onChange={(event) => setTimeOffset(Number(event.target.value))}
+              />
+            </div>
+            <MiniLineChart data={timeChart.points} />
+          </div>
+
+          <div className="chart-block top-organizations-block">
+            <div className="chart-header">
+              <h3>Top organizations</h3>
+              <span>Rating</span>
+            </div>
+            <div className="organization-controls">
+              <label>
+                <span>Category</span>
+                <select
+                  value={organizationCategory}
+                  onChange={(event) => setOrganizationCategory(event.target.value)}
+                >
+                  {organizationCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category === "all" ? "All" : category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Count</span>
+                <input
+                  max={10}
+                  min={1}
+                  type="number"
+                  value={organizationLimit}
+                  onChange={(event) =>
+                    setOrganizationLimit(
+                      Math.max(1, Math.min(10, Number(event.target.value) || 1)),
+                    )
+                  }
+                />
+              </label>
+            </div>
+            <OrganizationList data={filteredOrganizations} />
           </div>
 
           {isExpanded ? (
@@ -394,7 +563,11 @@ export function SelectionSummary({
           ) : null}
         </div>
       ) : (
-        <p className="summary-empty">{error ?? "Loading demand analytics..."}</p>
+        <div className="summary-empty">
+          {hasInsufficientProvinceData
+            ? "Данных недостаточно для построения графиков."
+            : error ?? "Loading demand analytics..."}
+        </div>
       )}
     </section>
   );

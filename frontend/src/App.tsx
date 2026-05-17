@@ -18,6 +18,7 @@ export function App() {
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [filters, setFilters] = useState(emptyDemandFilters);
   const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
+  const [customHeatmapColor, setCustomHeatmapColor] = useState("#0284c7");
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -28,7 +29,14 @@ export function App() {
     <main
       className="app-shell"
       data-theme={theme}
-      style={{ "--accent": heatmapPalettes[heatmapPalette].accent } as React.CSSProperties}
+      style={
+        {
+          "--accent":
+            heatmapPalette === "custom"
+              ? customHeatmapColor
+              : heatmapPalettes[heatmapPalette].accent,
+        } as React.CSSProperties
+      }
     >
       <nav className="navbar" aria-label="Main navigation">
         <FilterBar filters={filters} onFiltersChange={setFilters} />
@@ -55,9 +63,11 @@ export function App() {
       <section className={isPanelExpanded ? "workspace panel-expanded" : "workspace"}>
         <div className="map-area">
           <TurkeyMap
+            customHeatmapColor={customHeatmapColor}
             filters={filters}
             heatmapPalette={heatmapPalette}
             theme={theme}
+            onCustomHeatmapColorChange={setCustomHeatmapColor}
             onHeatmapPaletteChange={setHeatmapPalette}
             onSelectionChange={setSelection}
           />

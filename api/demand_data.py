@@ -53,6 +53,7 @@ class DemandFilters(TypedDict, total=False):
     hours: str | None
     weekdays: str | None
     provinces: str | None
+    categories: str | None
     results: str | None
     rating: str | None
     steps: str | None
@@ -187,6 +188,7 @@ def apply_demand_filters(
     hour_ranges = _split_filter(filters.get("hours"))
     weekdays = _split_filter(filters.get("weekdays"))
     provinces = _split_filter(filters.get("provinces"))
+    categories = _split_filter(filters.get("categories"))
     result_states = _split_filter(filters.get("results"))
     step_ranges = _split_filter(filters.get("steps"))
     source_states = _split_filter(filters.get("sources"))
@@ -201,6 +203,9 @@ def apply_demand_filters(
     if provinces:
         province_numbers = {int(province) for province in provinces}
         filtered = filtered[filtered["province_number"].isin(province_numbers)]
+
+    if categories:
+        filtered = filtered[filtered["category"].isin(categories)]
 
     if rating and rating != "Any rating":
         filtered = filtered[filtered["avg_rating"] >= float(rating.rstrip("+"))]
@@ -267,6 +272,76 @@ def get_region_values(
     }
 
 
+def _time_series(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+
+    next_frame = frame.copy()
+    next_frame["timestamp"] = pd.to_datetime(next_frame["date"]) + pd.to_timedelta(
+        next_frame["hour"],
+        unit="h",
+    )
+
+    return (
+        next_frame.groupby("timestamp", as_index=False)["searches"]
+        .sum()
+        .sort_values("timestamp")
+        .assign(timestamp=lambda item: item["timestamp"].dt.strftime("%Y-%m-%dT%H:00:00"))
+        .to_dict("records")
+    )
+
+
+def _top_organizations(
+    frame: pd.DataFrame,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+
+    rows: list[dict[str, Any]] = []
+
+    for item in frame.itertuples(index=False):
+        for rank in range(1, 4):
+            seed = _stable_int(item.province_number, item.category, item.date, item.hour, rank)
+            searches = max(1, int(item.searches * (0.44 - rank * 0.08)))
+            rating = round(min(5.0, float(item.avg_rating) + (seed % 18) / 100 - 0.06), 2)
+            rows.append(
+                {
+                    "name": f"{item.province_name} {str(item.category).title()} #{rank}",
+                    "category": item.category,
+                    "rating": rating,
+                    "searches": searches,
+                }
+            )
+
+    organization_frame = pd.DataFrame(rows)
+
+    if organization_frame.empty:
+        return []
+
+    return (
+        organization_frame.groupby(["name", "category"], as_index=False)
+        .agg(
+            rating=("rating", "mean"),
+            searches=("searches", "sum"),
+        )
+        .assign(rating=lambda item: item["rating"].round(2))
+        .sort_values(["rating", "searches"], ascending=[False, False])
+        .head(max(1, min(limit, 10)))
+        .to_dict("records")
+    )
+
+
+def _province_name(province_number: int) -> str | None:
+    for feature in load_city_geojson().get("features", []):
+        properties = feature.get("properties", {})
+
+        if int(properties["number"]) == province_number:
+            return str(properties["name"])
+
+    return None
+
+
 def get_overview(
     metric: MetricName = "searches",
     filters: DemandFilters | None = None,
@@ -313,8 +388,10 @@ def get_overview(
         "summary": summary,
         "top_provinces": ranked[:8],
         "daily_searches": by_date,
+        "time_series": _time_series(frame),
         "category_breakdown": category,
         "hourly_distribution": hourly,
+        "top_organizations": _top_organizations(frame),
     }
 
 
@@ -324,9 +401,23 @@ def get_province_detail(
 ) -> dict[str, Any] | None:
     frame = apply_demand_filters(get_demand_dataframe(), filters)
     province_frame = frame[frame["province_number"] == province_number]
+    province_name = _province_name(province_number)
+
+    if province_name is None:
+        return None
 
     if province_frame.empty:
-        return None
+        return {
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "province_number": province_number,
+            "name": province_name,
+            "summary": None,
+            "daily_searches": [],
+            "time_series": [],
+            "category_breakdown": [],
+            "hourly_distribution": [],
+            "top_organizations": [],
+        }
 
     summary = _summary_from_frame(province_frame)
     daily = (
@@ -354,6 +445,8 @@ def get_province_detail(
         "name": str(province_frame["province_name"].iloc[0]),
         "summary": summary,
         "daily_searches": daily,
+        "time_series": _time_series(province_frame),
         "category_breakdown": category,
         "hourly_distribution": hourly,
+        "top_organizations": _top_organizations(province_frame),
     }

@@ -69,22 +69,61 @@ function normalizeValue(value: number, min: number, max: number) {
   return Math.max(0, Math.min(1, (value - min) / (max - min)));
 }
 
+function hexToRgb(color: string) {
+  const value = color.replace("#", "");
+  const normalized = value.length === 3
+    ? value.split("").map((character) => character + character).join("")
+    : value;
+
+  return {
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+  };
+}
+
+function mixHexColors(startColor: string, endColor: string, ratio: number) {
+  const start = hexToRgb(startColor);
+  const end = hexToRgb(endColor);
+  const next = {
+    b: Math.round(start.b + (end.b - start.b) * ratio),
+    g: Math.round(start.g + (end.g - start.g) * ratio),
+    r: Math.round(start.r + (end.r - start.r) * ratio),
+  };
+
+  return `rgb(${next.r} ${next.g} ${next.b})`;
+}
+
 function colorForValue(
   value: number | undefined,
   min: number,
   max: number,
   theme: Theme,
   palette: HeatmapPalette,
+  customColor: string,
 ) {
   if (!Number.isFinite(value)) {
     return themePathColors[theme].emptyFill;
   }
 
   const ratio = normalizeValue(value as number, min, max);
-  const lightness = theme === "dark" ? 62 - ratio * 42 : 92 - ratio * 64;
   const paletteConfig = heatmapPalettes[palette];
 
-  return `hsl(${paletteConfig.hue} ${paletteConfig.saturation}% ${lightness}%)`;
+  if (paletteConfig.mode === "gradient") {
+    return mixHexColors(
+      paletteConfig.startColor ?? "#16a34a",
+      paletteConfig.endColor ?? "#dc2626",
+      ratio,
+    );
+  }
+
+  if (paletteConfig.mode === "custom") {
+    return mixHexColors(themePathColors[theme].emptyFill, customColor, ratio);
+  }
+
+  const lightness = theme === "dark" ? 62 - ratio * 42 : 92 - ratio * 64;
+
+  return `hsl(${paletteConfig.hue ?? 199} ${paletteConfig.saturation ?? 86}% ${lightness}%)`;
 }
 
 function metricLabel(metric: DemandMetricKey) {
@@ -207,15 +246,19 @@ function CoordinatePicker({
 
 export function TurkeyMap({
   filters,
+  customHeatmapColor,
   heatmapPalette,
   theme,
   onHeatmapPaletteChange,
+  onCustomHeatmapColorChange,
   onSelectionChange,
 }: {
   filters: DemandFilters;
+  customHeatmapColor: string;
   heatmapPalette: HeatmapPalette;
   theme: Theme;
   onHeatmapPaletteChange: (palette: HeatmapPalette) => void;
+  onCustomHeatmapColorChange: (color: string) => void;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
 }) {
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
@@ -280,11 +323,19 @@ export function TurkeyMap({
           valueRange.max,
           theme,
           heatmapPalette,
+          customHeatmapColor,
         ),
         ...(provinceNumber === selectedProvinceNumber ? selectedStyle(theme) : {}),
       };
     },
-    [heatmapPalette, regionData, selectedProvinceNumber, theme, valueRange],
+    [
+      customHeatmapColor,
+      heatmapPalette,
+      regionData,
+      selectedProvinceNumber,
+      theme,
+      valueRange,
+    ],
   );
 
   const onEachFeature = useCallback(
@@ -438,6 +489,15 @@ export function TurkeyMap({
                 </option>
               ))}
             </select>
+          </label>
+          <label className="palette-color">
+            <span>Color</span>
+            <input
+              disabled={heatmapPalette !== "custom"}
+              type="color"
+              value={customHeatmapColor}
+              onChange={(event) => onCustomHeatmapColorChange(event.target.value)}
+            />
           </label>
           <button className="refresh-button" type="button" onClick={refreshData}>
             Refresh
