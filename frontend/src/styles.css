@@ -284,6 +284,52 @@
     border-color: var(--border);
   }
 
+  .province-map-search {
+    @apply absolute top-3 left-3 z-[720] flex items-end gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
+    background: var(--card-background);
+    border-color: var(--border);
+  }
+
+  .province-map-search label {
+    @apply grid gap-1 text-xs;
+    color: var(--muted-text);
+  }
+
+  .province-map-search input {
+    @apply h-9 w-52 rounded-md border px-2.5;
+    background: var(--card-background);
+    border-color: var(--border);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .province-suggestions {
+    @apply absolute left-2 top-[calc(100%+6px)] grid w-[calc(100%-16px)] overflow-hidden rounded-lg border shadow-[0_16px_32px_rgba(15,23,42,0.16)];
+    background: var(--card-background);
+    border-color: var(--border);
+  }
+
+  .province-suggestions button {
+    @apply grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-none border-0 px-2.5 text-left text-[13px];
+    background: var(--card-background);
+    color: var(--text);
+  }
+
+  .province-suggestions button:hover,
+  .province-suggestions button:focus {
+    background: var(--toggle-background);
+  }
+
+  .province-suggestions span {
+    @apply overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .province-suggestions em {
+    @apply rounded-md px-1.5 py-0.5 text-[11px] not-italic;
+    background: var(--toggle-background);
+    color: var(--muted-text);
+  }
+
   .coordinate-search label {
     @apply grid gap-1 text-xs;
     color: var(--muted-text);
@@ -457,8 +503,7 @@
     color: var(--muted-text);
   }
 
-  .chart-controls,
-  .organization-controls {
+  .chart-controls {
     @apply grid gap-2;
   }
 
@@ -485,32 +530,37 @@
     accent-color: var(--accent);
   }
 
-  .organization-controls {
-    @apply grid-cols-[minmax(0,1fr)_72px];
-  }
-
-  .organization-controls label {
-    @apply grid gap-1 text-xs;
-    color: var(--muted-text);
-  }
-
-  .organization-controls select,
-  .organization-controls input {
-    @apply h-9 min-w-0 rounded-md border px-2.5;
-    background: var(--card-background);
-    border-color: var(--border);
-    color: var(--text);
-    font: inherit;
-  }
-
-  .mini-line-chart {
-    @apply h-[84px] w-full rounded-md border;
+  .line-chart-wrap {
+    @apply relative overflow-hidden rounded-md border;
     background: var(--toggle-background);
     border-color: var(--border);
   }
 
+  .line-chart-metric {
+    @apply absolute top-2 right-2 z-[1] grid justify-items-end gap-0.5 rounded-md border px-2 py-1 text-xs;
+    background: color-mix(in srgb, var(--card-background) 86%, transparent);
+    border-color: var(--border);
+    color: var(--muted-text);
+  }
+
+  .line-chart-metric strong {
+    @apply text-sm leading-tight;
+    color: var(--text);
+  }
+
+  .mini-line-chart {
+    @apply block h-[150px] w-full;
+  }
+
   .summary-content.expanded .mini-line-chart {
-    @apply h-[140px];
+    @apply h-[220px];
+  }
+
+  .chart-empty {
+    @apply m-0 rounded-md border p-3 text-[13px];
+    background: var(--toggle-background);
+    border-color: var(--border);
+    color: var(--muted-text);
   }
 
   .bar-list {
@@ -651,7 +701,38 @@
   stroke: var(--accent);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3;
+  stroke-width: 2.8;
+}
+
+.chart-grid-line {
+  stroke: color-mix(in srgb, var(--border) 72%, transparent);
+  stroke-dasharray: 4 5;
+  stroke-width: 1;
+}
+
+.chart-axis {
+  stroke: color-mix(in srgb, var(--muted-text) 52%, transparent);
+  stroke-width: 1.2;
+}
+
+.chart-point {
+  fill: var(--card-background);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.chart-x-label,
+.chart-y-label {
+  fill: var(--muted-text);
+  font-size: 11px;
+}
+
+.chart-y-label {
+  text-anchor: end;
+}
+
+.chart-x-label.end {
+  text-anchor: end;
 }
 
 .pie-chart-base {
@@ -705,6 +786,18 @@
     @apply top-2.5 right-2.5 left-2.5 flex-wrap items-end;
   }
 
+  .province-map-search {
+    @apply top-[104px] right-2.5 left-2.5 flex-wrap;
+  }
+
+  .province-map-search input {
+    @apply w-full;
+  }
+
+  .province-map-search label {
+    @apply min-w-[180px] flex-1;
+  }
+
   .summary-primary {
     @apply grid items-stretch;
   }
@@ -721,10 +814,6 @@
 
   .summary-content.expanded .summary-grid {
     @apply grid-cols-2;
-  }
-
-  .organization-controls {
-    @apply grid-cols-1;
   }
 
   .pie-chart-wrap {

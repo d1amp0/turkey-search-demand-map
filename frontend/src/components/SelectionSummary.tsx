@@ -19,7 +19,6 @@ const timeWindowOptions = [
   { key: "week", label: "Week", durationHours: 24 * 7 },
   { key: "month", label: "Month", durationHours: 24 * 30 },
 ] as const;
-const organizationCategories = ["all", "restaurants", "hotels", "clinics", "transport", "shops"];
 
 type TimeWindowKey = (typeof timeWindowOptions)[number]["key"];
 type ChartPoint = {
@@ -53,22 +52,132 @@ function MetricTile({
 }
 
 function MiniLineChart({ data }: { data: ChartPoint[] }) {
-  const points = useMemo(() => {
-    const max = Math.max(...data.map((item) => item.searches), 1);
+  const chart = useMemo(() => {
+    const max = Math.max(...data.map((item) => item.searches), 0);
+    const safeMax = Math.max(max, 1);
+    const width = 320;
+    const height = 180;
+    const padding = {
+      bottom: 30,
+      left: 48,
+      right: 14,
+      top: 18,
+    };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const coordinates = data.map((item, index) => {
+      const x =
+        padding.left +
+        (data.length === 1 ? plotWidth / 2 : (index / (data.length - 1)) * plotWidth);
+      const y = padding.top + plotHeight - (item.searches / safeMax) * plotHeight;
 
-    return data
-      .map((item, index) => {
-        const x = data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
-        const y = 100 - (item.searches / max) * 86;
-        return `${x},${y}`;
-      })
-      .join(" ");
+      return {
+        ...item,
+        x,
+        y,
+      };
+    });
+
+    return {
+      coordinates,
+      height,
+      max,
+      mid: max / 2,
+      padding,
+      plotHeight,
+      plotWidth,
+      points: coordinates.map((item) => `${item.x},${item.y}`).join(" "),
+      total: data.reduce((sum, item) => sum + item.searches, 0),
+      width,
+    };
   }, [data]);
 
+  if (!data.length) {
+    return <p className="chart-empty">No requests in this time window.</p>;
+  }
+
+  const firstLabel = data[0]?.label ?? "";
+  const lastLabel = data.at(-1)?.label ?? "";
+  const yTicks = [
+    { label: formatInteger(chart.max), value: chart.max },
+    { label: formatInteger(chart.mid), value: chart.mid },
+    { label: "0", value: 0 },
+  ];
+
   return (
-    <svg className="mini-line-chart" viewBox="0 0 100 100" role="img">
-      <polyline points={points} />
-    </svg>
+    <div className="line-chart-wrap">
+      <div className="line-chart-metric">
+        <span>Total requests</span>
+        <strong>{formatInteger(chart.total)}</strong>
+      </div>
+      <svg
+        className="mini-line-chart"
+        viewBox={`0 0 ${chart.width} ${chart.height}`}
+        role="img"
+      >
+        {yTicks.map((tick) => {
+          const y =
+            chart.padding.top +
+            chart.plotHeight -
+            (tick.value / Math.max(chart.max, 1)) * chart.plotHeight;
+
+          return (
+            <g key={tick.label}>
+              <line
+                className="chart-grid-line"
+                x1={chart.padding.left}
+                x2={chart.padding.left + chart.plotWidth}
+                y1={y}
+                y2={y}
+              />
+              <text className="chart-y-label" x={chart.padding.left - 8} y={y + 4}>
+                {tick.label}
+              </text>
+            </g>
+          );
+        })}
+        <line
+          className="chart-axis"
+          x1={chart.padding.left}
+          x2={chart.padding.left}
+          y1={chart.padding.top}
+          y2={chart.padding.top + chart.plotHeight}
+        />
+        <line
+          className="chart-axis"
+          x1={chart.padding.left}
+          x2={chart.padding.left + chart.plotWidth}
+          y1={chart.padding.top + chart.plotHeight}
+          y2={chart.padding.top + chart.plotHeight}
+        />
+        <polyline points={chart.points} />
+        {chart.coordinates.map((item, index) => (
+          <circle
+            className="chart-point"
+            cx={item.x}
+            cy={item.y}
+            key={`${item.label}-${index}`}
+            r={data.length > 24 && index % 2 !== 0 ? 2 : 3}
+          >
+            <title>{`${item.label}: ${formatInteger(item.searches)}`}</title>
+          </circle>
+        ))}
+        <text
+          className="chart-x-label"
+          x={chart.padding.left}
+          y={chart.height - 8}
+        >
+          {firstLabel}
+        </text>
+        <text
+          className="chart-x-label end"
+          x={chart.padding.left + chart.plotWidth}
+          y={chart.height - 8}
+        >
+          {lastLabel}
+        </text>
+      </svg>
+    </div>
   );
 }
 
@@ -301,8 +410,6 @@ export function SelectionSummary({
   const [error, setError] = useState<string | null>(null);
   const [timeWindow, setTimeWindow] = useState<TimeWindowKey>("day");
   const [timeOffset, setTimeOffset] = useState(0);
-  const [organizationCategory, setOrganizationCategory] = useState("all");
-  const [organizationLimit, setOrganizationLimit] = useState(5);
 
   useEffect(() => {
     void fetchDemandOverview(filters)
@@ -337,11 +444,7 @@ export function SelectionSummary({
   const timeSeries = activeData?.time_series ?? [];
   const categoryBreakdown = activeData?.category_breakdown ?? [];
   const hourlyDistribution = activeData?.hourly_distribution ?? [];
-  const filteredOrganizations = (activeData?.top_organizations ?? [])
-    .filter((organization) =>
-      organizationCategory === "all" ? true : organization.category === organizationCategory,
-    )
-    .slice(0, organizationLimit);
+  const topOrganizations = (activeData?.top_organizations ?? []).slice(0, 5);
   const timeChart = useMemo(
     () => aggregateTimeSeries(timeSeries, timeWindow, timeOffset),
     [timeOffset, timeSeries, timeWindow],
@@ -441,39 +544,10 @@ export function SelectionSummary({
 
           <div className="chart-block top-organizations-block">
             <div className="chart-header">
-              <h3>Top organizations</h3>
+              <h3>Top 5 organizations</h3>
               <span>Rating</span>
             </div>
-            <div className="organization-controls">
-              <label>
-                <span>Category</span>
-                <select
-                  value={organizationCategory}
-                  onChange={(event) => setOrganizationCategory(event.target.value)}
-                >
-                  {organizationCategories.map((category) => (
-                    <option key={category} value={category}>
-                      {category === "all" ? "All" : category}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Count</span>
-                <input
-                  max={10}
-                  min={1}
-                  type="number"
-                  value={organizationLimit}
-                  onChange={(event) =>
-                    setOrganizationLimit(
-                      Math.max(1, Math.min(10, Number(event.target.value) || 1)),
-                    )
-                  }
-                />
-              </label>
-            </div>
-            <OrganizationList data={filteredOrganizations} />
+            <OrganizationList data={topOrganizations} />
           </div>
 
           {isExpanded ? (

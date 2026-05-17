@@ -23,6 +23,11 @@ import type { CoordinateMatch } from "../types/selection";
 
 type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 type Theme = "light" | "dark";
+type ProvinceSuggestion = {
+  distance: number;
+  name: string;
+  number: number;
+};
 
 const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
   light: {
@@ -140,6 +145,101 @@ function metricLabel(metric: DemandMetricKey) {
     default:
       return "Popularity";
   }
+}
+
+function markerColors(
+  palette: HeatmapPalette,
+  customColor: string,
+  theme: Theme,
+) {
+  if (palette === "greenRed" || palette === "orange") {
+    return {
+      border: theme === "dark" ? "#f8fafc" : "#111827",
+      fill: "#2563eb",
+    };
+  }
+
+  if (palette === "blue" || palette === "tealGold") {
+    return {
+      border: theme === "dark" ? "#f8fafc" : "#111827",
+      fill: "#f97316",
+    };
+  }
+
+  if (palette === "purple") {
+    return {
+      border: theme === "dark" ? "#f8fafc" : "#111827",
+      fill: "#22c55e",
+    };
+  }
+
+  if (palette === "custom") {
+    const { b, g, r } = hexToRgb(customColor);
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+    return {
+      border: luminance > 0.55 ? "#111827" : "#f8fafc",
+      fill: luminance > 0.55 ? "#7c3aed" : "#facc15",
+    };
+  }
+
+  return {
+    border: theme === "dark" ? "#f8fafc" : "#111827",
+    fill: "#dc2626",
+  };
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/İ/g, "i")
+    .toLowerCase()
+    .trim();
+}
+
+function levenshteinDistance(leftValue: string, rightValue: string) {
+  const left = normalizeSearchValue(leftValue);
+  const right = normalizeSearchValue(rightValue);
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = Array.from({ length: right.length + 1 }, () => 0);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    current[0] = leftIndex;
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const cost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + cost,
+      );
+    }
+
+    for (let index = 0; index < previous.length; index += 1) {
+      previous[index] = current[index];
+    }
+  }
+
+  return previous[right.length];
+}
+
+function provinceSearchScore(query: string, provinceName: string) {
+  const normalizedQuery = normalizeSearchValue(query);
+  const normalizedName = normalizeSearchValue(provinceName);
+  const baseDistance = levenshteinDistance(normalizedQuery, normalizedName);
+
+  if (normalizedName.startsWith(normalizedQuery)) {
+    return Math.max(0, baseDistance - 6);
+  }
+
+  if (normalizedName.includes(normalizedQuery)) {
+    return Math.max(0, baseDistance - 3);
+  }
+
+  return baseDistance;
 }
 
 function pointInRing(
@@ -273,10 +373,31 @@ export function TurkeyMap({
     longitude: number;
   } | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
+  const [isCustomColorPickerActive, setIsCustomColorPickerActive] = useState(false);
+  const [isProvinceSearchOpen, setIsProvinceSearchOpen] = useState(false);
+  const [provinceSearch, setProvinceSearch] = useState("");
   const [selectedProvinceNumber, setSelectedProvinceNumber] = useState<number | null>(
     null,
   );
   const activeMetric = filters.metric;
+  const activeMarkerColors = markerColors(heatmapPalette, customHeatmapColor, theme);
+
+  const provinceSuggestions = useMemo<ProvinceSuggestion[]>(() => {
+    const query = provinceSearch.trim();
+
+    if (!query || !geoJson) {
+      return [];
+    }
+
+    return geoJson.features
+      .map((feature) => ({
+        distance: provinceSearchScore(query, feature.properties.name),
+        name: feature.properties.name,
+        number: feature.properties.number,
+      }))
+      .sort((left, right) => left.distance - right.distance || left.name.localeCompare(right.name))
+      .slice(0, 5);
+  }, [geoJson, provinceSearch]);
 
   const valueRange = useMemo(() => {
     const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
@@ -306,6 +427,29 @@ export function TurkeyMap({
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const selectProvince = useCallback(
+    (province: { name: string; number: number }) => {
+      setSelectedProvinceNumber(province.number);
+      setCoordinateError(null);
+      setCoordinateMatch({
+        latitude: null,
+        longitude: null,
+        regionName: province.name,
+        provinceNumber: province.number,
+      });
+      setMarkerPosition(null);
+      setProvinceSearch(province.name);
+      setIsProvinceSearchOpen(false);
+      onSelectionChange({
+        latitude: null,
+        longitude: null,
+        regionName: province.name,
+        provinceNumber: province.number,
+      });
+    },
+    [onSelectionChange],
+  );
 
   const styleRegion = useCallback(
     (feature?: Feature<Geometry, TurkeyProvinceProperties>) => {
@@ -358,11 +502,19 @@ export function TurkeyMap({
 
       layer.on({
         mouseout: () => {
+          if (heatmapPalette === "custom" && isCustomColorPickerActive) {
+            return;
+          }
+
           if ("setStyle" in layer) {
             (layer as Path).setStyle(styleRegion(feature));
           }
         },
         mouseover: () => {
+          if (heatmapPalette === "custom" && isCustomColorPickerActive) {
+            return;
+          }
+
           if ("setStyle" in layer) {
             (layer as Path).setStyle(
               feature.properties.number === selectedProvinceNumber
@@ -372,19 +524,9 @@ export function TurkeyMap({
           }
         },
         click: () => {
-          setSelectedProvinceNumber(feature.properties.number);
-          setCoordinateError(null);
-          setCoordinateMatch({
-            latitude: null,
-            longitude: null,
-            regionName: feature.properties.name,
-            provinceNumber: feature.properties.number,
-          });
-          onSelectionChange({
-            latitude: null,
-            longitude: null,
-            regionName: feature.properties.name,
-            provinceNumber: feature.properties.number,
+          selectProvince({
+            name: feature.properties.name,
+            number: feature.properties.number,
           });
 
           if ("bringToFront" in layer) {
@@ -395,8 +537,10 @@ export function TurkeyMap({
     },
     [
       activeMetric,
-      onSelectionChange,
+      heatmapPalette,
+      isCustomColorPickerActive,
       regionData,
+      selectProvince,
       selectedProvinceNumber,
       styleRegion,
       theme,
@@ -460,6 +604,8 @@ export function TurkeyMap({
     setCoordinateMatch(null);
     setCoordinateError(null);
     setSelectedProvinceNumber(null);
+    setIsProvinceSearchOpen(false);
+    setProvinceSearch("");
     onSelectionChange(null);
     void loadData();
   }
@@ -496,7 +642,10 @@ export function TurkeyMap({
               disabled={heatmapPalette !== "custom"}
               type="color"
               value={customHeatmapColor}
+              onBlur={() => setIsCustomColorPickerActive(false)}
               onChange={(event) => onCustomHeatmapColorChange(event.target.value)}
+              onFocus={() => setIsCustomColorPickerActive(true)}
+              onPointerDown={() => setIsCustomColorPickerActive(true)}
             />
           </label>
           <button className="refresh-button" type="button" onClick={refreshData}>
@@ -515,6 +664,48 @@ export function TurkeyMap({
       </div>
 
       <div className="map-canvas">
+        <form
+          className="province-map-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+
+            if (provinceSuggestions[0]) {
+              selectProvince({
+                name: provinceSuggestions[0].name,
+                number: provinceSuggestions[0].number,
+              });
+            }
+          }}
+        >
+          <label>
+            <span>Province</span>
+            <input
+              autoComplete="off"
+              placeholder="Type a province name"
+              value={provinceSearch}
+              onChange={(event) => {
+                setProvinceSearch(event.target.value);
+                setIsProvinceSearchOpen(true);
+              }}
+              onFocus={() => setIsProvinceSearchOpen(true)}
+            />
+          </label>
+          <button type="submit">Find</button>
+          {isProvinceSearchOpen && provinceSuggestions.length ? (
+            <div className="province-suggestions">
+              {provinceSuggestions.map((province) => (
+                <button
+                  key={province.number}
+                  type="button"
+                  onClick={() => selectProvince(province)}
+                >
+                  <span>{province.name}</span>
+                  <em>{province.distance}</em>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </form>
         <form
           className="coordinate-search"
           onSubmit={(event) => {
@@ -570,7 +761,7 @@ export function TurkeyMap({
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${customHeatmapColor}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}
@@ -582,12 +773,12 @@ export function TurkeyMap({
               <CircleMarker
                 center={[markerPosition.latitude, markerPosition.longitude]}
                 pathOptions={{
-                  color: theme === "dark" ? "#f8fafc" : "#111827",
-                  fillColor: "#ef4444",
+                  color: activeMarkerColors.border,
+                  fillColor: activeMarkerColors.fill,
                   fillOpacity: 1,
-                  weight: 2,
+                  weight: 3,
                 }}
-                radius={7}
+                radius={8}
               />
             ) : null}
           </Pane>
