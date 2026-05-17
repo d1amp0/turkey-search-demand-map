@@ -15,6 +15,7 @@ import type { DemandFilters } from "../types/filters";
 import { heatmapPalettes } from "../types/palette";
 import type { HeatmapPalette } from "../types/palette";
 import type {
+  DemandMetricKey,
   RegionValuesResponse,
   TurkeyProvinceProperties,
 } from "../types/region";
@@ -84,6 +85,22 @@ function colorForValue(
   const paletteConfig = heatmapPalettes[palette];
 
   return `hsl(${paletteConfig.hue} ${paletteConfig.saturation}% ${lightness}%)`;
+}
+
+function metricLabel(metric: DemandMetricKey) {
+  switch (metric) {
+    case "avg_rating":
+      return "Average rating";
+    case "no_result_rate":
+      return "No-result rate";
+    case "avg_steps":
+      return "Average steps";
+    case "source_coverage":
+      return "Source coverage";
+    case "searches":
+    default:
+      return "Popularity";
+  }
 }
 
 function pointInRing(
@@ -216,6 +233,7 @@ export function TurkeyMap({
   const [selectedProvinceNumber, setSelectedProvinceNumber] = useState<number | null>(
     null,
   );
+  const activeMetric = filters.metric;
 
   const valueRange = useMemo(() => {
     const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
@@ -232,7 +250,7 @@ export function TurkeyMap({
     try {
       const [nextGeoJson, nextRegionData] = await Promise.all([
         fetchTurkeyGeoJson(),
-        fetchRegionValues(filters),
+        fetchRegionValues(filters, activeMetric),
       ]);
 
       setGeoJson(nextGeoJson);
@@ -240,7 +258,7 @@ export function TurkeyMap({
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load map");
     }
-  }, [filters]);
+  }, [activeMetric, filters]);
 
   useEffect(() => {
     void loadData();
@@ -278,7 +296,8 @@ export function TurkeyMap({
         `
           <strong>${feature.properties.name}</strong><br>
           Province: ${provinceNumber}<br>
-          Value: ${Number.isFinite(value) ? value : "No data"}
+          ${metricLabel(activeMetric)}:
+          ${Number.isFinite(value) ? value : "No data"}
         `,
         {
           className: "region-tooltip",
@@ -323,7 +342,14 @@ export function TurkeyMap({
         },
       });
     },
-    [onSelectionChange, regionData, selectedProvinceNumber, styleRegion, theme],
+    [
+      activeMetric,
+      onSelectionChange,
+      regionData,
+      selectedProvinceNumber,
+      styleRegion,
+      theme,
+    ],
   );
 
   const updatedAt = regionData?.updated_at
@@ -392,7 +418,10 @@ export function TurkeyMap({
       <div className="map-toolbar">
         <div>
           <h1>Turkey demand map</h1>
-          <p>{error ?? `Updated: ${updatedAt}`}</p>
+          <p>
+            {error ??
+              `${metricLabel(activeMetric)} · Updated: ${updatedAt}`}
+          </p>
         </div>
         <div className="map-toolbar-actions">
           <label className="palette-select">
