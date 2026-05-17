@@ -32,30 +32,6 @@ function formatInteger(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
 }
 
-function ratingTone(value: number) {
-  if (value >= 4) {
-    return "good";
-  }
-
-  if (value >= 3) {
-    return "warning";
-  }
-
-  return "bad";
-}
-
-function ratingLabel(value: number) {
-  if (value >= 4) {
-    return "High";
-  }
-
-  if (value >= 3) {
-    return "Medium";
-  }
-
-  return "Low";
-}
-
 function MetricTile({
   label,
   value,
@@ -71,12 +47,22 @@ function MetricTile({
   );
 }
 
-function MiniLineChart({ data }: { data: ChartPoint[] }) {
+function MiniLineChart({
+  data,
+  isExpanded,
+}: {
+  data: ChartPoint[];
+  isExpanded: boolean;
+}) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const chart = useMemo(() => {
     const max = Math.max(...data.map((item) => item.searches), 0);
     const safeMax = Math.max(max, 1);
-    const width = 320;
+    const width = isExpanded ? 1280 : 640;
     const height = 210;
     const padding = {
       bottom: 30,
@@ -111,7 +97,7 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
       total: data.reduce((sum, item) => sum + item.searches, 0),
       width,
     };
-  }, [data]);
+  }, [data, isExpanded]);
 
   if (!data.length) {
     return <p className="chart-empty">No requests in this time window.</p>;
@@ -144,6 +130,18 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
     return nearestIndex;
   }
 
+  function updateHoveredPoint(clientX: number, target: SVGSVGElement) {
+    const nextIndex = getNearestPoint(clientX, target);
+    const nextPoint = chart.coordinates[nextIndex];
+    const bounds = target.getBoundingClientRect();
+
+    setHoveredIndex(nextIndex);
+    setTooltipPosition({
+      left: (nextPoint.x / chart.width) * bounds.width,
+      top: (nextPoint.y / chart.height) * bounds.height,
+    });
+  }
+
   return (
     <div className="line-chart-wrap">
       <div className="line-chart-metric">
@@ -154,10 +152,11 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
         className="mini-line-chart"
         viewBox={`0 0 ${chart.width} ${chart.height}`}
         role="img"
-        onMouseLeave={() => setHoveredIndex(null)}
-        onMouseMove={(event) =>
-          setHoveredIndex(getNearestPoint(event.clientX, event.currentTarget))
-        }
+        onMouseLeave={() => {
+          setHoveredIndex(null);
+          setTooltipPosition(null);
+        }}
+        onMouseMove={(event) => updateHoveredPoint(event.clientX, event.currentTarget)}
       >
         {yTicks.map((tick) => {
           const y =
@@ -238,12 +237,12 @@ function MiniLineChart({ data }: { data: ChartPoint[] }) {
           {lastLabel}
         </text>
       </svg>
-      {hoveredPoint ? (
+      {hoveredPoint && tooltipPosition ? (
         <div
           className="line-chart-tooltip"
           style={{
-            left: `${(hoveredPoint.x / chart.width) * 100}%`,
-            top: `${(hoveredPoint.y / chart.height) * 100}%`,
+            left: tooltipPosition.left,
+            top: tooltipPosition.top,
           }}
         >
           <strong>{hoveredPoint.label}</strong>
@@ -443,7 +442,10 @@ function NumericBarPlot({
         <div className="numeric-bar-column" key={getLabel(item)}>
           <strong>{formatInteger(item.searches)}</strong>
           <div className="numeric-bar-track">
-            <div style={{ height: `${(item.searches / max) * 100}%` }} />
+            <div
+              className="numeric-bar-fill"
+              style={{ height: `${Math.max((item.searches / max) * 100, 4)}%` }}
+            />
           </div>
           <span>{getLabel(item)}</span>
         </div>
@@ -612,11 +614,6 @@ export function SelectionSummary({
                 {selection?.provinceNumber ? subtitle : "Select a province for details"}
               </span>
             </div>
-            <div className="summary-rating" data-tone={ratingTone(summary.avg_rating)}>
-              <span>Avg rating</span>
-              <strong>{summary.avg_rating.toFixed(2)}</strong>
-              <em>{ratingLabel(summary.avg_rating)}</em>
-            </div>
           </div>
 
           <div className="chart-block line-chart-block">
@@ -655,15 +652,7 @@ export function SelectionSummary({
                 onChange={setTimeOffset}
               />
             </div>
-            <MiniLineChart data={timeChart.points} />
-          </div>
-
-          <div className="chart-block top-organizations-block">
-            <div className="chart-header">
-              <h3>Top 5 organizations</h3>
-              <span>Rating</span>
-            </div>
-            <OrganizationList data={topOrganizations} />
+            <MiniLineChart data={timeChart.points} isExpanded={isExpanded} />
           </div>
 
           {isExpanded ? (
@@ -686,7 +675,7 @@ export function SelectionSummary({
                   getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
                 />
               </div>
-              <div className="chart-block">
+              <div className="chart-block full-width-chart">
                 <div className="chart-header">
                   <h3>{provinceDemand ? "Categories" : "Top provinces"}</h3>
                 </div>
@@ -730,20 +719,54 @@ export function SelectionSummary({
                   getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
                 />
               </div>
+              <div className="chart-block top-organizations-block">
+                <div className="chart-header">
+                  <h3>Top 5 organizations</h3>
+                  <span>Rating</span>
+                </div>
+                <OrganizationList data={topOrganizations} />
+              </div>
             </>
           ) : overview ? (
-            <div className="chart-block">
-              <div className="chart-header">
-                <h3>Top provinces</h3>
+            <>
+              <div className="chart-block full-width-bar-chart">
+                <div className="chart-header">
+                  <h3>Request types</h3>
+                </div>
+                <NumericBarPlot
+                  data={overview.category_breakdown}
+                  getLabel={(item) => "category" in item ? item.category : String(item.hour)}
+                />
               </div>
-              <BarList
-                data={overview.top_provinces.map((province) => ({
-                  category: province.name,
-                  searches: province.summary.searches,
-                }))}
-                getLabel={(item) => "category" in item ? item.category : String(item.hour)}
-              />
-            </div>
+              <div className="chart-block full-width-bar-chart">
+                <div className="chart-header">
+                  <h3>Hours</h3>
+                </div>
+                <NumericBarPlot
+                  data={overview.hourly_distribution}
+                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
+                />
+              </div>
+              <div className="chart-block">
+                <div className="chart-header">
+                  <h3>Top provinces</h3>
+                </div>
+                <BarList
+                  data={overview.top_provinces.map((province) => ({
+                    category: province.name,
+                    searches: province.summary.searches,
+                  }))}
+                  getLabel={(item) => "category" in item ? item.category : String(item.hour)}
+                />
+              </div>
+              <div className="chart-block top-organizations-block">
+                <div className="chart-header">
+                  <h3>Top 5 organizations</h3>
+                  <span>Rating</span>
+                </div>
+                <OrganizationList data={topOrganizations} />
+              </div>
+            </>
           ) : null}
 
           {selection &&

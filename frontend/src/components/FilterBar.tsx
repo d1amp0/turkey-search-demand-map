@@ -147,7 +147,7 @@ export function FilterBar({
             <div className="filter-section-header">
               <span>Map metric</span>
             </div>
-            <div className="stacked-options">
+            <div className="organization-list-options">
               {metrics.map((metric) => (
                 <label className="region-option" key={metric.key}>
                   <input
@@ -243,7 +243,7 @@ export function FilterBar({
                 Clear
               </button>
             </div>
-            <div className="stacked-options">
+            <div className="organization-list-options">
               {categories.map((category) => (
                 <label className="region-option" key={category}>
                   <input

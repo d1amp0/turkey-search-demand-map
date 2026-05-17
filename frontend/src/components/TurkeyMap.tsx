@@ -32,11 +32,11 @@ type ProvinceSuggestion = {
 const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
   light: {
     border: "#374151",
-    emptyFill: "#f3f4f6",
+    emptyFill: "#d1d5db",
   },
   dark: {
     border: "#94a3b8",
-    emptyFill: "#1f2937",
+    emptyFill: "#475569",
   },
 };
 
@@ -488,11 +488,13 @@ export function TurkeyMap({
         provinceNumber === undefined
           ? undefined
           : regionData?.values[String(provinceNumber)]?.value;
+      const displayValue =
+        activeMetric === "avg_rating" && value === 0 ? undefined : value;
 
       return {
         ...baseStyle(theme),
         fillColor: colorForValue(
-          value,
+          displayValue,
           valueRange.min,
           valueRange.max,
           theme,
@@ -502,6 +504,7 @@ export function TurkeyMap({
       };
     },
     [
+      activeMetric,
       heatmapPalette,
       regionData,
       selectedProvinceNumber,
@@ -514,13 +517,15 @@ export function TurkeyMap({
     (feature: Feature<Geometry, TurkeyProvinceProperties>, layer: Layer) => {
       const provinceNumber = String(feature.properties.number);
       const value = regionData?.values[provinceNumber]?.value;
+      const displayValue =
+        activeMetric === "avg_rating" && value === 0 ? undefined : value;
 
       layer.bindTooltip(
         `
           <strong>${feature.properties.name}</strong><br>
           Province: ${provinceNumber}<br>
           ${metricLabel(activeMetric)}:
-          ${Number.isFinite(value) ? value : "No data"}
+          ${Number.isFinite(displayValue) ? displayValue : "N/A"}
         `,
         {
           className: "region-tooltip",
