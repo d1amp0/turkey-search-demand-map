@@ -29,6 +29,10 @@ export function fetchTurkeyGeoJson() {
   );
 }
 
+export function fetchDemandCategories() {
+  return getJson<string[]>("/api/categories");
+}
+
 function demandQuery(filters: DemandFilters) {
   const params = new URLSearchParams();
 
@@ -48,20 +52,8 @@ function demandQuery(filters: DemandFilters) {
     params.set("categories", filters.categories.join(","));
   }
 
-  if (filters.resultStates.length) {
-    params.set("results", filters.resultStates.join(","));
-  }
-
   if (filters.rating !== "Any rating") {
     params.set("rating", filters.rating);
-  }
-
-  if (filters.stepRanges.length) {
-    params.set("steps", filters.stepRanges.join(","));
-  }
-
-  if (filters.sourceStates.length) {
-    params.set("sources", filters.sourceStates.join(","));
   }
 
   const query = params.toString();

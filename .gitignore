@@ -2,6 +2,8 @@
 *.jsonl
 models/
 *.csv
+!data/provinces/
+!data/provinces/*.csv
 *.parquet
 *.pkl
 *.pt

@@ -39,15 +39,13 @@ function formatPercent(value: number) {
 
 function MetricTile({
   label,
-  tone,
   value,
 }: {
   label: string;
-  tone?: "good" | "warning" | "bad" | "neutral";
   value: string;
 }) {
   return (
-    <div data-tone={tone ?? "neutral"}>
+    <div data-tone="neutral">
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
@@ -330,8 +328,28 @@ function aggregateTimeSeries(
   };
 }
 
+function topPieCategories(data: CategorySearchPoint[]) {
+  const visible = data.slice(0, 5);
+  const otherSearches = data
+    .slice(5)
+    .reduce((sum, item) => sum + item.searches, 0);
+
+  if (!otherSearches) {
+    return visible;
+  }
+
+  return [
+    ...visible,
+    {
+      category: "Other",
+      searches: otherSearches,
+    },
+  ];
+}
+
 function PieChart({ data }: { data: CategorySearchPoint[] }) {
-  const total = data.reduce((sum, item) => sum + item.searches, 0);
+  const chartData = topPieCategories(data);
+  const total = chartData.reduce((sum, item) => sum + item.searches, 0);
   let offset = 25;
 
   if (!total) {
@@ -342,7 +360,7 @@ function PieChart({ data }: { data: CategorySearchPoint[] }) {
     <div className="pie-chart-wrap">
       <svg className="pie-chart" viewBox="0 0 42 42" role="img">
         <circle className="pie-chart-base" cx="21" cy="21" r="15.915" />
-        {data.map((item, index) => {
+        {chartData.map((item, index) => {
           const share = (item.searches / total) * 100;
           const segment = (
             <circle
@@ -362,7 +380,7 @@ function PieChart({ data }: { data: CategorySearchPoint[] }) {
         })}
       </svg>
       <div className="pie-legend">
-        {data.map((item, index) => (
+        {chartData.map((item, index) => (
           <div className="pie-legend-row" key={item.category}>
             <span style={{ background: chartColors[index % chartColors.length] }} />
             <strong>{item.category}</strong>
@@ -418,56 +436,44 @@ function OrganizationList({ data }: { data: TopOrganization[] }) {
   );
 }
 
+function hasEnoughDailyRequests(data: DemandOverviewResponse | ProvinceDemandResponse | null) {
+  if (!data?.daily_searches.length) {
+    return false;
+  }
+
+  const sortedDays = data.daily_searches
+    .map((item) => ({
+      date: item.date,
+      searches: item.searches,
+      time: new Date(item.date).getTime(),
+    }))
+    .sort((left, right) => left.time - right.time);
+  const startTime = sortedDays[0]?.time;
+  const endTime = sortedDays.at(-1)?.time;
+
+  if (startTime === undefined || endTime === undefined) {
+    return false;
+  }
+
+  const searchesByDate = new Map(sortedDays.map((item) => [item.date, item.searches]));
+
+  for (
+    let currentTime = startTime;
+    currentTime <= endTime;
+    currentTime += 24 * 60 * 60 * 1000
+  ) {
+    const dateKey = new Date(currentTime).toISOString().slice(0, 10);
+
+    if ((searchesByDate.get(dateKey) ?? 0) < 5) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function getSummary(data: DemandOverviewResponse | ProvinceDemandResponse | null) {
   return data?.summary ?? null;
-}
-
-function ratingTone(value: number) {
-  if (value >= 4) {
-    return "good";
-  }
-
-  if (value >= 3) {
-    return "warning";
-  }
-
-  return "bad";
-}
-
-function inverseRateTone(value: number) {
-  if (value <= 0.15) {
-    return "good";
-  }
-
-  if (value <= 0.3) {
-    return "warning";
-  }
-
-  return "bad";
-}
-
-function coverageTone(value: number) {
-  if (value >= 0.75) {
-    return "good";
-  }
-
-  if (value >= 0.5) {
-    return "warning";
-  }
-
-  return "bad";
-}
-
-function stepsTone(value: number) {
-  if (value <= 3) {
-    return "good";
-  }
-
-  if (value <= 6) {
-    return "warning";
-  }
-
-  return "bad";
 }
 
 export function SelectionSummary({
@@ -524,6 +530,10 @@ export function SelectionSummary({
   const categoryBreakdown = activeData?.category_breakdown ?? [];
   const hourlyDistribution = activeData?.hourly_distribution ?? [];
   const topOrganizations = (activeData?.top_organizations ?? []).slice(0, 5);
+  const canShowDailyRequestChart = hasEnoughDailyRequests(activeData);
+  const availableTimeWindowOptions = canShowDailyRequestChart
+    ? timeWindowOptions
+    : timeWindowOptions.filter((option) => option.key !== "day");
   const timeChart = useMemo(
     () => aggregateTimeSeries(timeSeries, timeWindow, timeOffset),
     [timeOffset, timeSeries, timeWindow],
@@ -533,6 +543,13 @@ export function SelectionSummary({
   const subtitle = provinceDemand
     ? `Province ${provinceDemand.province_number}`
     : "All mapped provinces";
+
+  useEffect(() => {
+    if (!canShowDailyRequestChart && timeWindow === "day") {
+      setTimeWindow("week");
+      setTimeOffset(0);
+    }
+  }, [canShowDailyRequestChart, timeWindow]);
 
   return (
     <section
@@ -565,29 +582,6 @@ export function SelectionSummary({
             </div>
           </div>
 
-          <dl className="summary-grid">
-            <MetricTile
-              label="No results"
-              tone={inverseRateTone(summary.no_result_rate)}
-              value={formatPercent(summary.no_result_rate)}
-            />
-            <MetricTile
-              label="Avg rating"
-              tone={ratingTone(summary.avg_rating)}
-              value={summary.avg_rating.toFixed(2)}
-            />
-            <MetricTile
-              label="Avg steps"
-              tone={stepsTone(summary.avg_steps)}
-              value={summary.avg_steps.toFixed(1)}
-            />
-            <MetricTile
-              label="Source coverage"
-              tone={coverageTone(summary.source_coverage)}
-              value={formatPercent(summary.source_coverage)}
-            />
-          </dl>
-
           <div className="chart-block line-chart-block">
             <div className="chart-header">
               <h3>Search requests</h3>
@@ -597,7 +591,7 @@ export function SelectionSummary({
               <div className="time-window-picker">
                 <span>Window</span>
                 <div className="segmented-control">
-                  {timeWindowOptions.map((option) => (
+                  {availableTimeWindowOptions.map((option) => (
                     <button
                       className={timeWindow === option.key ? "active" : ""}
                       key={option.key}
@@ -612,6 +606,11 @@ export function SelectionSummary({
                   ))}
                 </div>
               </div>
+              {!canShowDailyRequestChart ? (
+                <p className="chart-note">
+                  Day view is hidden because at least one day has fewer than 5 requests.
+                </p>
+              ) : null}
               <TimeWindowSlider
                 max={timeChart.maxOffset}
                 value={Math.min(timeOffset, timeChart.maxOffset)}

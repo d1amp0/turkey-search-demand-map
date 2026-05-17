@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.demand_data import get_metric_catalog
+from api.demand_data import get_category_catalog
 from api.demand_data import get_overview
 from api.demand_data import get_province_detail
 from api.demand_data import get_region_values
@@ -48,6 +47,11 @@ def metrics() -> dict:
     return get_metric_catalog()
 
 
+@app.get("/api/categories")
+def categories() -> list[str]:
+    return get_category_catalog()
+
+
 @app.get("/api/demand/region-values")
 def demand_region_values(
     metric: MetricName = "searches",
@@ -55,20 +59,14 @@ def demand_region_values(
     weekdays: str | None = None,
     provinces: str | None = None,
     categories: str | None = None,
-    results: str | None = None,
     rating: str | None = None,
-    steps: str | None = None,
-    sources: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
         "hours": hours,
         "weekdays": weekdays,
         "provinces": provinces,
         "categories": categories,
-        "results": results,
         "rating": rating,
-        "steps": steps,
-        "sources": sources,
     }
     return get_region_values(metric, filters)
 
@@ -80,20 +78,14 @@ def demand_overview(
     weekdays: str | None = None,
     provinces: str | None = None,
     categories: str | None = None,
-    results: str | None = None,
     rating: str | None = None,
-    steps: str | None = None,
-    sources: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
         "hours": hours,
         "weekdays": weekdays,
         "provinces": provinces,
         "categories": categories,
-        "results": results,
         "rating": rating,
-        "steps": steps,
-        "sources": sources,
     }
     return get_overview(metric, filters)
 
@@ -105,7 +97,7 @@ def demand_province_detail(
     weekdays: str | None = None,
     categories: str | None = None,
     rating: str | None = None,
-) -> list[dict[str, Any]]:
+) -> dict:
     filters: DemandFilters = {
         "hours": hours,
         "weekdays": weekdays,

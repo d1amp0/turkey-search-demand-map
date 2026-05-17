@@ -44,7 +44,7 @@ function baseStyle(theme: Theme): PathOptions {
   return {
     color: themePathColors[theme].border,
     fillColor: themePathColors[theme].emptyFill,
-    fillOpacity: 0.88,
+    fillOpacity: 0.96,
     opacity: 1,
     weight: 1,
   };
@@ -72,6 +72,19 @@ function normalizeValue(value: number, min: number, max: number) {
   }
 
   return Math.max(0, Math.min(1, (value - min) / (max - min)));
+}
+
+function percentile(sortedValues: number[], ratio: number) {
+  if (!sortedValues.length) {
+    return 0;
+  }
+
+  const index = Math.min(
+    sortedValues.length - 1,
+    Math.max(0, Math.round((sortedValues.length - 1) * ratio)),
+  );
+
+  return sortedValues[index];
 }
 
 function hexToRgb(color: string) {
@@ -110,7 +123,8 @@ function colorForValue(
     return themePathColors[theme].emptyFill;
   }
 
-  const ratio = normalizeValue(value as number, min, max);
+  const normalizedRatio = normalizeValue(value as number, min, max);
+  const ratio = Math.pow(normalizedRatio, 0.72);
   const paletteConfig = heatmapPalettes[palette];
 
   if (paletteConfig.mode === "gradient") {
@@ -121,21 +135,15 @@ function colorForValue(
     );
   }
 
-  const lightness = theme === "dark" ? 62 - ratio * 42 : 92 - ratio * 64;
+  const lightness = theme === "dark" ? 70 - ratio * 52 : 94 - ratio * 70;
 
-  return `hsl(${paletteConfig.hue ?? 199} ${paletteConfig.saturation ?? 86}% ${lightness}%)`;
+  return `hsl(${paletteConfig.hue ?? 199} ${Math.min((paletteConfig.saturation ?? 86) + 8, 98)}% ${lightness}%)`;
 }
 
 function metricLabel(metric: DemandMetricKey) {
   switch (metric) {
     case "avg_rating":
       return "Average rating";
-    case "no_result_rate":
-      return "No-result rate";
-    case "avg_steps":
-      return "Average steps";
-    case "source_coverage":
-      return "Source coverage";
     case "searches":
     default:
       return "Popularity";
@@ -419,11 +427,14 @@ export function TurkeyMap({
   }, [activeSuggestionIndex, provinceSuggestions]);
 
   const valueRange = useMemo(() => {
-    const values = Object.values(regionData?.values ?? {}).map((item) => item.value);
+    const values = Object.values(regionData?.values ?? {})
+      .map((item) => item.value)
+      .filter(Number.isFinite)
+      .sort((left, right) => left - right);
 
     return {
-      min: values.length ? Math.min(...values) : 0,
-      max: values.length ? Math.max(...values) : 1,
+      min: values.length ? percentile(values, 0.08) : 0,
+      max: values.length ? percentile(values, 0.92) : 1,
     };
   }, [regionData]);
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchTurkeyGeoJson } from "../api/client";
+import { fetchDemandCategories, fetchTurkeyGeoJson } from "../api/client";
 import type { DemandFilters } from "../types/filters";
 
 type FilterMenu =
@@ -7,7 +7,7 @@ type FilterMenu =
   | "time"
   | "provinces"
   | "organizations"
-  | "results"
+  | "rating"
   | null;
 type ProvinceOption = {
   name: string;
@@ -17,10 +17,7 @@ type ArrayFilterKey =
   | "hourRanges"
   | "weekdays"
   | "provinceNumbers"
-  | "categories"
-  | "resultStates"
-  | "stepRanges"
-  | "sourceStates";
+  | "categories";
 
 const hourRanges = [
   "00-05",
@@ -35,15 +32,8 @@ const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const metrics = [
   { key: "searches", label: "Popularity" },
   { key: "avg_rating", label: "Rating" },
-  { key: "no_result_rate", label: "No results" },
-  { key: "avg_steps", label: "Agent steps" },
-  { key: "source_coverage", label: "Source coverage" },
 ] as const;
-const organizationTypes = ["restaurants", "hotels", "clinics", "transport", "shops"];
-const resultStates = ["Organizations found", "No organizations"];
 const ratingThresholds = ["Any rating", "3.0+", "4.0+", "4.5+"];
-const stepRanges = ["1-3 steps", "4-6 steps", "7+ steps"];
-const sourceStates = ["Has sources", "No sources"];
 
 function summaryLabel(values: string[], fallback: string) {
   if (!values.length) {
@@ -65,6 +55,7 @@ export function FilterBar({
   onFiltersChange: (filters: DemandFilters) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<FilterMenu>(null);
+  const [categories, setCategories] = useState<string[]>([]);
   const [provinceSearch, setProvinceSearch] = useState("");
   const [provinces, setProvinces] = useState<ProvinceOption[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,6 +92,10 @@ export function FilterBar({
   }, []);
 
   useEffect(() => {
+    void fetchDemandCategories().then(setCategories);
+  }, []);
+
+  useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) {
         setOpenMenu(null);
@@ -130,12 +125,6 @@ export function FilterBar({
     filters.hourRanges.length + filters.weekdays.length > 0
       ? `${filters.hourRanges.length + filters.weekdays.length} selected`
       : "Time";
-
-  const resultSelectionCount =
-    filters.resultStates.length +
-    filters.stepRanges.length +
-    filters.sourceStates.length +
-    (filters.rating === "Any rating" ? 0 : 1);
 
   const selectedProvinceNames = provinces
     .filter((province) => filters.provinceNumbers.includes(province.number))
@@ -255,7 +244,7 @@ export function FilterBar({
               </button>
             </div>
             <div className="stacked-options">
-              {organizationTypes.map((category) => (
+              {categories.map((category) => (
                 <label className="region-option" key={category}>
                   <input
                     checked={filters.categories.includes(category)}
@@ -315,94 +304,29 @@ export function FilterBar({
       <div className="filter-group">
         <button
           type="button"
-          className={openMenu === "results" ? "filter-trigger active" : "filter-trigger"}
-          aria-expanded={openMenu === "results"}
-          onClick={() => setOpenMenu(openMenu === "results" ? null : "results")}
+          className={openMenu === "rating" || filters.rating !== "Any rating" ? "filter-trigger active" : "filter-trigger"}
+          aria-expanded={openMenu === "rating"}
+          onClick={() => setOpenMenu(openMenu === "rating" ? null : "rating")}
         >
-          {resultSelectionCount ? `${resultSelectionCount} selected` : "Results"}
+          {filters.rating === "Any rating" ? "Any rating" : filters.rating}
         </button>
 
-        {openMenu === "results" ? (
-          <div className="filter-popover results-popover">
-            <div className="filter-section">
-              <div className="filter-section-header">
-                <span>Organizations</span>
-                <button type="button" onClick={() => updateFilters({ resultStates: [] })}>
-                  Clear
-                </button>
-              </div>
-              <div className="stacked-options">
-                {resultStates.map((state) => (
-                  <label className="region-option" key={state}>
-                    <input
-                      checked={filters.resultStates.includes(state)}
-                      type="checkbox"
-                      onChange={() => toggleFilterValue("resultStates", state)}
-                    />
-                    <span>{state}</span>
-                  </label>
-                ))}
-              </div>
+        {openMenu === "rating" ? (
+          <div className="filter-popover metric-popover">
+            <div className="filter-section-header">
+              <span>Rating</span>
             </div>
-
-            <div className="filter-section">
-              <div className="filter-section-header">
-                <span>Rating</span>
-              </div>
-              <div className="chip-grid rating-grid">
-                {ratingThresholds.map((rating) => (
-                  <button
-                    type="button"
-                    className={filters.rating === rating ? "chip active" : "chip"}
-                    key={rating}
-                    onClick={() => updateFilters({ rating })}
-                  >
-                    {rating}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-section">
-              <div className="filter-section-header">
-                <span>Agent steps</span>
-                <button type="button" onClick={() => updateFilters({ stepRanges: [] })}>
-                  Clear
+            <div className="chip-grid rating-grid">
+              {ratingThresholds.map((rating) => (
+                <button
+                  type="button"
+                  className={filters.rating === rating ? "chip active" : "chip"}
+                  key={rating}
+                  onClick={() => updateFilters({ rating })}
+                >
+                  {rating}
                 </button>
-              </div>
-              <div className="chip-grid steps-grid">
-                {stepRanges.map((stepRange) => (
-                  <button
-                    type="button"
-                    className={filters.stepRanges.includes(stepRange) ? "chip active" : "chip"}
-                    key={stepRange}
-                    onClick={() => toggleFilterValue("stepRanges", stepRange)}
-                  >
-                    {stepRange}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-section">
-              <div className="filter-section-header">
-                <span>Sources</span>
-                <button type="button" onClick={() => updateFilters({ sourceStates: [] })}>
-                  Clear
-                </button>
-              </div>
-              <div className="stacked-options">
-                {sourceStates.map((state) => (
-                  <label className="region-option" key={state}>
-                    <input
-                      checked={filters.sourceStates.includes(state)}
-                      type="checkbox"
-                      onChange={() => toggleFilterValue("sourceStates", state)}
-                    />
-                    <span>{state}</span>
-                  </label>
-                ))}
-              </div>
+              ))}
             </div>
           </div>
         ) : null}

@@ -6,10 +6,7 @@ export type DemandFilters = {
   weekdays: string[];
   provinceNumbers: number[];
   categories: string[];
-  resultStates: string[];
   rating: string;
-  stepRanges: string[];
-  sourceStates: string[];
 };
 
 export const emptyDemandFilters: DemandFilters = {
@@ -18,8 +15,5 @@ export const emptyDemandFilters: DemandFilters = {
   weekdays: [],
   provinceNumbers: [],
   categories: [],
-  resultStates: [],
   rating: "Any rating",
-  stepRanges: [],
-  sourceStates: [],
 };
