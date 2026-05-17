@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
@@ -101,22 +103,14 @@ def demand_province_detail(
     province_number: int,
     hours: str | None = None,
     weekdays: str | None = None,
-    provinces: str | None = None,
     categories: str | None = None,
-    results: str | None = None,
     rating: str | None = None,
-    steps: str | None = None,
-    sources: str | None = None,
-) -> dict:
+) -> list[dict[str, Any]]:
     filters: DemandFilters = {
         "hours": hours,
         "weekdays": weekdays,
-        "provinces": provinces,
         "categories": categories,
-        "results": results,
         "rating": rating,
-        "steps": steps,
-        "sources": sources,
     }
     detail = get_province_detail(province_number, filters)
 

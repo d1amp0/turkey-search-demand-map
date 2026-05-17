@@ -8,6 +8,7 @@ from typing import Any, Literal, TypedDict
 import pandas as pd
 
 from api.region_data import load_city_geojson
+from api.settings import PROVINCES_DIR
 
 
 MetricName = Literal[
@@ -342,6 +343,47 @@ def _province_name(province_number: int) -> str | None:
     return None
 
 
+def _load_province_csv(
+    province_number: int,
+    filters: DemandFilters | None = None,
+) -> list[dict[str, Any]] | None:
+    csv_path = PROVINCES_DIR / f"{province_number}.csv"
+
+    if not csv_path.exists():
+        return None
+
+    frame = pd.read_csv(
+        csv_path,
+        usecols=["org_name", "time", "category", "org_rating"],
+    )
+    frame = frame.where(pd.notna(frame), None)
+
+    if filters:
+        hour_ranges = _split_filter(filters.get("hours"))
+        weekdays = _split_filter(filters.get("weekdays"))
+        categories = _split_filter(filters.get("categories"))
+        rating = filters.get("rating")
+
+        if hour_ranges or weekdays:
+            parsed_time = pd.to_datetime(frame["time"], errors="coerce")
+
+            if hour_ranges:
+                hours = _hours_from_ranges(hour_ranges)
+                frame = frame[parsed_time.dt.hour.isin(hours)]
+
+            if weekdays:
+                frame = frame[parsed_time.dt.strftime("%a").isin(weekdays)]
+
+        if categories:
+            frame = frame[frame["category"].isin(categories)]
+
+        if rating and rating != "Any rating":
+            rating_values = pd.to_numeric(frame["org_rating"], errors="coerce")
+            frame = frame[rating_values >= float(rating.rstrip("+"))]
+
+    return frame.to_dict(orient="records")
+
+
 def get_overview(
     metric: MetricName = "searches",
     filters: DemandFilters | None = None,
@@ -398,55 +440,5 @@ def get_overview(
 def get_province_detail(
     province_number: int,
     filters: DemandFilters | None = None,
-) -> dict[str, Any] | None:
-    frame = apply_demand_filters(get_demand_dataframe(), filters)
-    province_frame = frame[frame["province_number"] == province_number]
-    province_name = _province_name(province_number)
-
-    if province_name is None:
-        return None
-
-    if province_frame.empty:
-        return {
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "province_number": province_number,
-            "name": province_name,
-            "summary": None,
-            "daily_searches": [],
-            "time_series": [],
-            "category_breakdown": [],
-            "hourly_distribution": [],
-            "top_organizations": [],
-        }
-
-    summary = _summary_from_frame(province_frame)
-    daily = (
-        province_frame.groupby("date", as_index=False)["searches"]
-        .sum()
-        .sort_values("date")
-        .to_dict("records")
-    )
-    category = (
-        province_frame.groupby("category", as_index=False)["searches"]
-        .sum()
-        .sort_values("searches", ascending=False)
-        .to_dict("records")
-    )
-    hourly = (
-        province_frame.groupby("hour", as_index=False)["searches"]
-        .sum()
-        .sort_values("hour")
-        .to_dict("records")
-    )
-
-    return {
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "province_number": province_number,
-        "name": str(province_frame["province_name"].iloc[0]),
-        "summary": summary,
-        "daily_searches": daily,
-        "time_series": _time_series(province_frame),
-        "category_breakdown": category,
-        "hourly_distribution": hourly,
-        "top_organizations": _top_organizations(province_frame),
-    }
+) -> list[dict[str, Any]] | None:
+    return _load_province_csv(province_number, filters)
