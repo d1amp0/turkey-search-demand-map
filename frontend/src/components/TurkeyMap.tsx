@@ -20,6 +20,33 @@ import type { CoordinateMatch } from "../types/selection";
 
 type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 type Theme = "light" | "dark";
+type HeatmapPalette = "blue" | "green" | "orange" | "purple";
+
+const heatmapPalettes: Record<
+  HeatmapPalette,
+  { label: string; hue: number; saturation: number }
+> = {
+  blue: {
+    label: "Blue",
+    hue: 199,
+    saturation: 86,
+  },
+  green: {
+    label: "Green",
+    hue: 151,
+    saturation: 72,
+  },
+  orange: {
+    label: "Orange",
+    hue: 32,
+    saturation: 92,
+  },
+  purple: {
+    label: "Purple",
+    hue: 267,
+    saturation: 78,
+  },
+};
 
 const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
   light: {
@@ -71,6 +98,7 @@ function colorForValue(
   min: number,
   max: number,
   theme: Theme,
+  palette: HeatmapPalette,
 ) {
   if (!Number.isFinite(value)) {
     return themePathColors[theme].emptyFill;
@@ -78,8 +106,9 @@ function colorForValue(
 
   const ratio = normalizeValue(value as number, min, max);
   const lightness = theme === "dark" ? 62 - ratio * 42 : 92 - ratio * 64;
+  const paletteConfig = heatmapPalettes[palette];
 
-  return `hsl(199 86% ${lightness}%)`;
+  return `hsl(${paletteConfig.hue} ${paletteConfig.saturation}% ${lightness}%)`;
 }
 
 function pointInRing(
@@ -200,7 +229,12 @@ export function TurkeyMap({
   const [longitudeInput, setLongitudeInput] = useState("35");
   const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
   const [coordinateMatch, setCoordinateMatch] = useState<CoordinateMatch | null>(null);
+  const [markerPosition, setMarkerPosition] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
+  const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
   const [selectedProvinceNumber, setSelectedProvinceNumber] = useState<number | null>(
     null,
   );
@@ -244,11 +278,17 @@ export function TurkeyMap({
 
       return {
         ...baseStyle(theme),
-        fillColor: colorForValue(value, valueRange.min, valueRange.max, theme),
+        fillColor: colorForValue(
+          value,
+          valueRange.min,
+          valueRange.max,
+          theme,
+          heatmapPalette,
+        ),
         ...(provinceNumber === selectedProvinceNumber ? selectedStyle(theme) : {}),
       };
     },
-    [regionData, selectedProvinceNumber, theme, valueRange],
+    [heatmapPalette, regionData, selectedProvinceNumber, theme, valueRange],
   );
 
   const onEachFeature = useCallback(
@@ -325,6 +365,7 @@ export function TurkeyMap({
       };
 
       setCoordinateError(null);
+      setMarkerPosition({ latitude, longitude });
       setCoordinateMatch(nextSelection);
       onSelectionChange(nextSelection);
     },
@@ -344,6 +385,7 @@ export function TurkeyMap({
       longitude > 180
     ) {
       setCoordinateError("Enter valid latitude and longitude");
+      setMarkerPosition(null);
       setCoordinateMatch(null);
       onSelectionChange(null);
       return;
@@ -359,6 +401,7 @@ export function TurkeyMap({
   }
 
   function refreshData() {
+    setMarkerPosition(null);
     setCoordinateMatch(null);
     setCoordinateError(null);
     setSelectedProvinceNumber(null);
@@ -373,9 +416,26 @@ export function TurkeyMap({
           <h1>Turkey demand map</h1>
           <p>{error ?? `Updated: ${updatedAt}`}</p>
         </div>
-        <button className="refresh-button" type="button" onClick={refreshData}>
-          Refresh
-        </button>
+        <div className="map-toolbar-actions">
+          <label className="palette-select">
+            <span>Heatmap</span>
+            <select
+              value={heatmapPalette}
+              onChange={(event) =>
+                setHeatmapPalette(event.target.value as HeatmapPalette)
+              }
+            >
+              {Object.entries(heatmapPalettes).map(([key, palette]) => (
+                <option key={key} value={key}>
+                  {palette.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="refresh-button" type="button" onClick={refreshData}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="coordinate-result" aria-live="polite">
@@ -443,7 +503,7 @@ export function TurkeyMap({
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}
@@ -451,19 +511,17 @@ export function TurkeyMap({
             ) : null}
           </Pane>
           <Pane name="marker-pane" style={{ zIndex: 450 }}>
-            {coordinateMatch ? (
-              coordinateMatch.latitude !== null && coordinateMatch.longitude !== null ? (
-                <CircleMarker
-                  center={[coordinateMatch.latitude, coordinateMatch.longitude]}
-                  pathOptions={{
-                    color: theme === "dark" ? "#f8fafc" : "#111827",
-                    fillColor: "#ef4444",
-                    fillOpacity: 1,
-                    weight: 2,
-                  }}
-                  radius={7}
-                />
-              ) : null
+            {markerPosition ? (
+              <CircleMarker
+                center={[markerPosition.latitude, markerPosition.longitude]}
+                pathOptions={{
+                  color: theme === "dark" ? "#f8fafc" : "#111827",
+                  fillColor: "#ef4444",
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+                radius={7}
+              />
             ) : null}
           </Pane>
         </MapContainer>

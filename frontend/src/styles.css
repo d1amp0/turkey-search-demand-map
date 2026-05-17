@@ -302,6 +302,32 @@ button {
   padding: 12px 14px;
 }
 
+.map-toolbar-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.palette-select {
+  align-items: center;
+  color: var(--muted-text);
+  display: flex;
+  font-size: 12px;
+  gap: 7px;
+}
+
+.palette-select select {
+  background: var(--card-background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  height: 36px;
+  padding: 0 28px 0 10px;
+}
+
 .refresh-button {
   flex: 0 0 auto;
   min-width: 82px;
@@ -743,6 +769,18 @@ button {
   .map-toolbar {
     align-items: center;
     flex-direction: row;
+  }
+
+  .map-toolbar-actions {
+    align-items: flex-end;
+    display: grid;
+    justify-items: end;
+  }
+
+  .palette-select {
+    align-items: flex-end;
+    display: grid;
+    gap: 4px;
   }
 
   .coordinate-search {
