@@ -1,6 +1,7 @@
 import type { FeatureCollection, Geometry } from "geojson";
 import type {
   DemandOverviewResponse,
+  DemandMetricKey,
   ProvinceDemandResponse,
   RegionValuesResponse,
   TurkeyProvinceProperties,
@@ -43,6 +44,10 @@ function demandQuery(filters: DemandFilters) {
     params.set("provinces", filters.provinceNumbers.join(","));
   }
 
+  if (filters.categories.length) {
+    params.set("categories", filters.categories.join(","));
+  }
+
   if (filters.resultStates.length) {
     params.set("results", filters.resultStates.join(","));
   }
@@ -63,9 +68,15 @@ function demandQuery(filters: DemandFilters) {
   return query ? `?${query}` : "";
 }
 
-export function fetchRegionValues(filters: DemandFilters) {
+export function fetchRegionValues(
+  filters: DemandFilters,
+  metric: DemandMetricKey = filters.metric,
+) {
+  const query = demandQuery(filters);
+  const separator = query ? "&" : "?";
+
   return getJson<RegionValuesResponse>(
-    `/api/demand/region-values${demandQuery(filters)}`,
+    `/api/demand/region-values${query}${separator}metric=${metric}`,
   );
 }
 
