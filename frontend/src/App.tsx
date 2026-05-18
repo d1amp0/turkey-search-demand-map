@@ -1,7 +1,5 @@
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { FilterBar } from "./components/FilterBar";
-import { PredictPanel } from "./components/PredictPanel";
-import { SelectionSummary } from "./components/SelectionSummary";
 import { TurkeyMap } from "./components/TurkeyMap";
 import { emptyDemandFilters } from "./types/filters";
 import { translations } from "./i18n";
@@ -11,6 +9,16 @@ import type { HeatmapPalette } from "./types/palette";
 import type { CoordinateMatch } from "./types/selection";
 
 type Theme = "light" | "dark";
+const PredictPanel = lazy(() =>
+  import("./components/PredictPanel").then((module) => ({
+    default: module.PredictPanel,
+  })),
+);
+const SelectionSummary = lazy(() =>
+  import("./components/SelectionSummary").then((module) => ({
+    default: module.SelectionSummary,
+  })),
+);
 
 export function App() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -26,6 +34,7 @@ export function App() {
   const [filters, setFilters] = useState(emptyDemandFilters);
   const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
   const [resetVersion, setResetVersion] = useState(0);
+  const [isAnalyticsReady, setIsAnalyticsReady] = useState(false);
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -44,6 +53,27 @@ export function App() {
     setIsPanelExpanded(false);
     setResetVersion((version) => version + 1);
   }
+
+  useEffect(() => {
+    const windowWithIdle = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const handle = windowWithIdle.requestIdleCallback
+      ? windowWithIdle.requestIdleCallback(() => setIsAnalyticsReady(true), {
+          timeout: 1200,
+        })
+      : window.setTimeout(() => setIsAnalyticsReady(true), 350);
+
+    return () => {
+      if (windowWithIdle.cancelIdleCallback && typeof handle === "number") {
+        windowWithIdle.cancelIdleCallback(handle);
+        return;
+      }
+
+      window.clearTimeout(handle);
+    };
+  }, []);
 
   return (
     <main
@@ -110,21 +140,27 @@ export function App() {
           />
         </div>
         <aside className="charts-panel" aria-label={translations[language].chartsPanel}>
-          {selection?.provinceNumber ? (
-            <PredictPanel
-              language={language}
-              resetVersion={resetVersion}
-              selection={selection}
-            />
-          ) : null}
-          <SelectionSummary
-            isExpanded={isPanelExpanded}
-            filters={filters}
-            heatmapPalette={heatmapPalette}
-            language={language}
-            onExpandedChange={setIsPanelExpanded}
-            selection={selection}
-          />
+          {isAnalyticsReady ? (
+            <Suspense fallback={<div className="summary-empty">{translations[language].loadingAnalytics}</div>}>
+              {selection?.provinceNumber ? (
+                <PredictPanel
+                  language={language}
+                  resetVersion={resetVersion}
+                  selection={selection}
+                />
+              ) : null}
+              <SelectionSummary
+                isExpanded={isPanelExpanded}
+                filters={filters}
+                heatmapPalette={heatmapPalette}
+                language={language}
+                onExpandedChange={setIsPanelExpanded}
+                selection={selection}
+              />
+            </Suspense>
+          ) : (
+            <div className="summary-empty">{translations[language].loadingAnalytics}</div>
+          )}
         </aside>
       </section>
     </main>
