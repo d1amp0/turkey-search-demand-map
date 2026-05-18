@@ -28,6 +28,11 @@ async function getJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+let turkeyGeoJsonRequest:
+  | Promise<FeatureCollection<Geometry, TurkeyProvinceProperties>>
+  | null = null;
+let demandCategoriesRequest: Promise<string[]> | null = null;
+
 async function postJson<TResponse, TPayload>(url: string, payload: TPayload): Promise<TResponse> {
   const response = await fetch(url, {
     body: JSON.stringify(payload),
@@ -49,13 +54,17 @@ async function postJson<TResponse, TPayload>(url: string, payload: TPayload): Pr
 }
 
 export function fetchTurkeyGeoJson() {
-  return getJson<FeatureCollection<Geometry, TurkeyProvinceProperties>>(
+  turkeyGeoJsonRequest ??= getJson<FeatureCollection<Geometry, TurkeyProvinceProperties>>(
     "/tr-cities.json",
   );
+
+  return turkeyGeoJsonRequest;
 }
 
 export function fetchDemandCategories() {
-  return getJson<string[]>("/api/categories");
+  demandCategoriesRequest ??= getJson<string[]>("/api/categories");
+
+  return demandCategoriesRequest;
 }
 
 export function fetchModelInfo() {
