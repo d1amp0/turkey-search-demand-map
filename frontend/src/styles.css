@@ -62,6 +62,10 @@
     color: var(--button-color);
     font: inherit;
   }
+
+  button:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
 }
 
 @layer components {
@@ -125,6 +129,13 @@
 
   .filter-section-header {
     @apply flex items-center justify-between text-xs uppercase;
+    color: var(--muted-text);
+  }
+
+  .filter-help {
+    @apply m-0 rounded-md border px-2.5 py-2 text-xs leading-snug;
+    background: color-mix(in srgb, var(--toggle-background) 72%, var(--card-background));
+    border-color: var(--border);
     color: var(--muted-text);
   }
 
@@ -256,6 +267,23 @@
     color: var(--muted-text);
   }
 
+  .palette-select span {
+    @apply grid gap-0.5;
+  }
+
+  .palette-select em,
+  .control-help,
+  .province-map-search em,
+  .map-pick-toggle em,
+  .predict-help {
+    @apply m-0 text-[11px] leading-snug not-italic;
+    color: var(--muted-text);
+  }
+
+  .palette-select em {
+    @apply max-w-48;
+  }
+
   .palette-select select {
     @apply h-9 rounded-md border py-0 pr-7 pl-2.5 text-[13px];
     background: var(--card-background);
@@ -269,15 +297,17 @@
   }
 
   .coordinate-search {
-    @apply absolute top-3 right-3 z-[700] flex items-center gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
+    @apply absolute top-3 right-3 z-[700] grid w-[min(520px,calc(100%-24px))] gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
     background: var(--card-background);
     border-color: var(--border);
+    grid-template-columns: 88px 88px minmax(150px, 1fr) auto;
   }
 
   .province-map-search {
-    @apply absolute top-3 left-3 z-[720] flex items-end gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
+    @apply absolute top-3 left-3 z-[720] grid w-[min(360px,calc(100%-24px))] gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
     background: var(--card-background);
     border-color: var(--border);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .province-map-search label {
@@ -286,7 +316,7 @@
   }
 
   .province-map-search input {
-    @apply h-9 w-52 rounded-md border px-2.5;
+    @apply h-9 w-full rounded-md border px-2.5;
     background: var(--card-background);
     border-color: var(--border);
     color: var(--text);
@@ -321,7 +351,7 @@
   }
 
   .coordinate-search input {
-    @apply h-9 w-22 rounded-md border px-2.5;
+    @apply h-9 w-full rounded-md border px-2.5;
     background: var(--card-background);
     border-color: var(--border);
     color: var(--text);
@@ -329,13 +359,25 @@
   }
 
   .coordinate-search .map-pick-toggle {
-    @apply flex h-9 items-center gap-2 text-[13px] leading-tight;
+    @apply grid min-h-9 items-center gap-x-2 gap-y-0.5 rounded-md border px-2.5 py-1.5 text-[13px] leading-tight;
+    background: var(--toggle-background);
+    border-color: var(--border);
     color: var(--text);
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .map-pick-toggle input {
     @apply m-0 h-4 w-4;
     accent-color: var(--button-background);
+  }
+
+  .map-pick-toggle em {
+    @apply col-span-2;
+  }
+
+  .coordinate-search .control-help {
+    @apply col-span-full max-w-none border-t pt-2;
+    border-color: var(--border);
   }
 
   .coordinate-result {
@@ -346,12 +388,24 @@
 
   .map-canvas {
     @apply relative min-h-0 min-w-0 overflow-hidden;
+    background: var(--map-background);
   }
 
   .leaflet-map,
   .leaflet-container {
     @apply h-full w-full;
     background: var(--map-background);
+  }
+
+  .app-shell[data-theme="dark"] .leaflet-map,
+  .app-shell[data-theme="dark"] .leaflet-container,
+  .app-shell[data-theme="dark"] .leaflet-pane,
+  .app-shell[data-theme="dark"] .leaflet-overlay-pane svg {
+    background: var(--map-background) !important;
+  }
+
+  .leaflet-map.pick-enabled {
+    cursor: crosshair;
   }
 
   .region-tooltip {
@@ -362,9 +416,10 @@
   }
 
   .charts-panel {
-    @apply w-[640px] overflow-hidden rounded-lg border transition-shadow;
+    @apply grid w-[640px] overflow-hidden rounded-lg border transition-shadow;
     background: var(--card-background);
     border-color: var(--border);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .panel-expanded .charts-panel {
@@ -377,6 +432,85 @@
 
   .summary-panel {
     @apply grid h-full content-start gap-4 overflow-auto p-4;
+  }
+
+  .predict-panel {
+    @apply grid gap-3 border-b p-4;
+    background: var(--card-background);
+    border-color: var(--border);
+  }
+
+  .predict-header {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .predict-header h2 {
+    @apply m-0 text-sm font-semibold leading-tight;
+  }
+
+  .predict-header span {
+    @apply text-xs leading-tight;
+    color: var(--muted-text);
+  }
+
+  .predict-result {
+    @apply rounded-md border px-2.5 py-1 text-sm leading-tight;
+    background: color-mix(in srgb, var(--accent) 12%, var(--toggle-background));
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+    color: var(--text);
+  }
+
+  .predict-help {
+    @apply max-w-none;
+  }
+
+  .predict-form {
+    @apply grid gap-2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .predict-field,
+  .predict-checkbox {
+    @apply min-w-0 text-xs leading-tight;
+    color: var(--muted-text);
+  }
+
+  .predict-field {
+    @apply grid gap-1;
+  }
+
+  .predict-field-wide {
+    @apply col-span-2;
+  }
+
+  .predict-field input,
+  .predict-field select {
+    @apply h-9 min-w-0 rounded-md border px-2.5 text-sm;
+    background: var(--card-background);
+    border-color: var(--border);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .predict-checkbox {
+    @apply flex h-full min-h-[52px] items-end gap-2 pb-2;
+    color: var(--text);
+  }
+
+  .predict-checkbox input {
+    @apply m-0 h-4 w-4;
+    accent-color: var(--button-background);
+  }
+
+  .predict-error {
+    @apply m-0 self-center rounded-md border px-2.5 py-2 text-xs leading-snug;
+    background: color-mix(in srgb, #dc2626 12%, var(--toggle-background));
+    border-color: color-mix(in srgb, #dc2626 42%, var(--border));
+    color: var(--text);
+  }
+
+  .predict-submit {
+    @apply justify-self-start self-end;
   }
 
   .panel-expanded .summary-panel {
@@ -573,12 +707,13 @@
   }
 
   .line-chart-tooltip {
-    @apply pointer-events-none absolute z-[2] grid -translate-x-1/2 -translate-y-[calc(100%+8px)] gap-0.5 rounded-md border px-2 py-1.5 text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
+    @apply pointer-events-none absolute z-[2] grid w-max max-w-[220px] -translate-x-1/2 gap-0.5 rounded-md border px-2.5 py-1.5 text-left text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
     background: var(--card-background);
     border-color: var(--border);
   }
 
   .line-chart-tooltip strong {
+    @apply whitespace-normal break-words;
     color: var(--text);
   }
 
@@ -639,7 +774,7 @@
   }
 
   .numeric-bar-plot {
-    @apply relative w-full overflow-hidden rounded-md border p-2;
+    @apply relative w-full overflow-visible rounded-md border p-2;
     background: var(--card-background);
     border-color: var(--border);
   }
@@ -657,13 +792,13 @@
   }
 
   .bar-plot-tooltip {
-    @apply pointer-events-none absolute z-[2] grid -translate-x-1/2 gap-0.5 rounded-md border px-2.5 py-1.5 text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
+    @apply pointer-events-none absolute z-[2] grid w-max max-w-[240px] -translate-x-1/2 gap-0.5 rounded-md border px-2.5 py-1.5 text-left text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
     background: var(--card-background);
     border-color: var(--border);
   }
 
   .bar-plot-tooltip strong {
-    @apply max-w-48 overflow-hidden text-ellipsis whitespace-nowrap;
+    @apply whitespace-normal break-words;
     color: var(--text);
   }
 
@@ -888,6 +1023,18 @@
     @apply w-full;
   }
 
+  .predict-form {
+    @apply grid-cols-2;
+  }
+
+  .predict-error {
+    @apply col-span-2;
+  }
+
+  .predict-submit {
+    @apply col-start-auto;
+  }
+
   .workspace {
     grid-template-rows: minmax(520px, 4fr) minmax(180px, 1fr);
   }
@@ -909,11 +1056,13 @@
   }
 
   .coordinate-search {
-    @apply top-2.5 right-2.5 left-2.5 flex-wrap items-end;
+    @apply top-2.5 right-2.5 left-2.5 w-auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .province-map-search {
-    @apply top-[98px] right-2.5 left-2.5 flex-wrap;
+    @apply top-[116px] right-2.5 left-2.5 w-auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .coordinate-search label {
@@ -925,7 +1074,7 @@
   }
 
   .coordinate-search .map-pick-toggle {
-    @apply min-w-[128px] flex-none;
+    @apply col-span-full;
   }
 
   .province-map-search input {

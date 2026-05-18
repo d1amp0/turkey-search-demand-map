@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { FilterBar } from "./components/FilterBar";
+import { PredictPanel } from "./components/PredictPanel";
 import { SelectionSummary } from "./components/SelectionSummary";
 import { TurkeyMap } from "./components/TurkeyMap";
 import { emptyDemandFilters } from "./types/filters";
+import { translations } from "./i18n";
+import type { Language } from "./i18n";
 import { heatmapPalettes } from "./types/palette";
 import type { HeatmapPalette } from "./types/palette";
 import type { CoordinateMatch } from "./types/selection";
@@ -14,14 +17,32 @@ export function App() {
     const savedTheme = window.localStorage.getItem("theme");
     return savedTheme === "dark" ? "dark" : "light";
   });
+  const [language, setLanguage] = useState<Language>(() => {
+    const savedLanguage = window.localStorage.getItem("language");
+    return savedLanguage === "tr" ? "tr" : "en";
+  });
   const [selection, setSelection] = useState<CoordinateMatch | null>(null);
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [filters, setFilters] = useState(emptyDemandFilters);
   const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
+  const [resetVersion, setResetVersion] = useState(0);
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
     setTheme(nextTheme);
+  }
+
+  function updateLanguage(nextLanguage: Language) {
+    window.localStorage.setItem("language", nextLanguage);
+    setLanguage(nextLanguage);
+  }
+
+  function resetUserControls() {
+    setFilters(emptyDemandFilters);
+    setHeatmapPalette("blue");
+    setSelection(null);
+    setIsPanelExpanded(false);
+    setResetVersion((version) => version + 1);
   }
 
   return (
@@ -30,17 +51,40 @@ export function App() {
       data-theme={theme}
       style={{ "--accent": heatmapPalettes[heatmapPalette].accent } as React.CSSProperties}
     >
-      <nav className="navbar" aria-label="Main navigation">
-        <FilterBar filters={filters} onFiltersChange={setFilters} />
+      <nav className="navbar" aria-label={translations[language].mainNavigation}>
+        <FilterBar
+          filters={filters}
+          language={language}
+          onFiltersChange={setFilters}
+          resetVersion={resetVersion}
+        />
         <div className="navbar-spacer" />
-        <div className="theme-toggle" aria-label="Theme switcher">
+        <div className="theme-toggle" aria-label={translations[language].language}>
+          <button
+            type="button"
+            className={language === "en" ? "active" : ""}
+            aria-pressed={language === "en"}
+            onClick={() => updateLanguage("en")}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            className={language === "tr" ? "active" : ""}
+            aria-pressed={language === "tr"}
+            onClick={() => updateLanguage("tr")}
+          >
+            TR
+          </button>
+        </div>
+        <div className="theme-toggle" aria-label={translations[language].theme}>
           <button
             type="button"
             className={theme === "light" ? "active" : ""}
             aria-pressed={theme === "light"}
             onClick={() => updateTheme("light")}
           >
-            Light
+            {translations[language].light}
           </button>
           <button
             type="button"
@@ -48,7 +92,7 @@ export function App() {
             aria-pressed={theme === "dark"}
             onClick={() => updateTheme("dark")}
           >
-            Dark
+            {translations[language].dark}
           </button>
         </div>
       </nav>
@@ -57,16 +101,27 @@ export function App() {
           <TurkeyMap
             filters={filters}
             heatmapPalette={heatmapPalette}
+            language={language}
             theme={theme}
             onHeatmapPaletteChange={setHeatmapPalette}
+            onResetUserControls={resetUserControls}
             onSelectionChange={setSelection}
+            resetVersion={resetVersion}
           />
         </div>
-        <aside className="charts-panel" aria-label="Charts panel">
+        <aside className="charts-panel" aria-label={translations[language].chartsPanel}>
+          {selection?.provinceNumber ? (
+            <PredictPanel
+              language={language}
+              resetVersion={resetVersion}
+              selection={selection}
+            />
+          ) : null}
           <SelectionSummary
             isExpanded={isPanelExpanded}
             filters={filters}
             heatmapPalette={heatmapPalette}
+            language={language}
             onExpandedChange={setIsPanelExpanded}
             selection={selection}
           />

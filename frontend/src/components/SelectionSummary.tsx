@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDemandOverview, fetchProvinceDemand } from "../api/client";
+import { translations, translateCategory } from "../i18n";
 import type { DemandFilters } from "../types/filters";
+import type { Language } from "../i18n";
 import type { HeatmapPalette } from "../types/palette";
 import type {
   CategorySearchPoint,
@@ -13,9 +15,10 @@ import type {
 import type { CoordinateMatch } from "../types/selection";
 
 const timeWindowOptions = [
-  { key: "day", label: "Day", durationHours: 24 },
-  { key: "week", label: "Week", durationHours: 24 * 7 },
-  { key: "month", label: "Month", durationHours: 24 * 30 },
+  { key: "day", labelKey: "day", durationHours: 24 },
+  { key: "week", labelKey: "week", durationHours: 24 * 7 },
+  { key: "month", labelKey: "month", durationHours: 24 * 30 },
+  { key: "all", labelKey: "allTime", durationHours: null },
 ] as const;
 
 type TimeWindowKey = (typeof timeWindowOptions)[number]["key"];
@@ -74,10 +77,13 @@ function MetricTile({
 function MiniLineChart({
   data,
   isExpanded,
+  language,
 }: {
   data: ChartPoint[];
   isExpanded: boolean;
+  language: Language;
 }) {
+  const t = translations[language];
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{
     left: number;
@@ -123,7 +129,7 @@ function MiniLineChart({
   }, [data, isExpanded]);
 
   if (!data.length) {
-    return <p className="chart-empty">No requests in this time window.</p>;
+    return <p className="chart-empty">{t.noRequests}</p>;
   }
 
   const firstLabel = data[0]?.label ?? "";
@@ -153,18 +159,20 @@ function MiniLineChart({
     const nextIndex = getNearestPoint(clientX, target);
     const nextPoint = chart.coordinates[nextIndex];
     const bounds = target.getBoundingClientRect();
+    const left = (nextPoint.x / chart.width) * bounds.width;
+    const top = (nextPoint.y / chart.height) * bounds.height;
 
     setHoveredIndex(nextIndex);
     setTooltipPosition({
-      left: (nextPoint.x / chart.width) * bounds.width,
-      top: (nextPoint.y / chart.height) * bounds.height,
+      left: clamp(left, 112, bounds.width - 112),
+      top: clamp(top + 14, 12, bounds.height - 64),
     });
   }
 
   return (
     <div className="line-chart-wrap">
       <div className="line-chart-metric">
-        <span>Total requests</span>
+        <span>{t.totalRequests}</span>
         <strong>{formatInteger(chart.total)}</strong>
       </div>
       <svg
@@ -265,7 +273,7 @@ function MiniLineChart({
           }}
         >
           <strong>{hoveredPoint.label}</strong>
-          <span>{formatInteger(hoveredPoint.searches)} requests</span>
+          <span>{formatInteger(hoveredPoint.searches)} {t.requests.toLowerCase()}</span>
         </div>
       ) : null}
     </div>
@@ -273,19 +281,23 @@ function MiniLineChart({
 }
 
 function TimeWindowSlider({
+  language,
   max,
   value,
   windowKey,
   onChange,
 }: {
+  language: Language;
   max: number;
   value: number;
   windowKey: TimeWindowKey;
   onChange: (value: number) => void;
 }) {
+  const t = translations[language];
   const windowOption =
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
-  const handleWidthPercent = clamp((windowOption.durationHours / (24 * 30)) * 100, 10, 100);
+  const durationHours = windowOption.durationHours ?? 24 * 30;
+  const handleWidthPercent = clamp((durationHours / (24 * 30)) * 100, 10, 100);
   const leftPercent = max > 0 ? (value / max) * (100 - handleWidthPercent) : 0;
 
   function updateFromPointer(clientX: number, target: HTMLDivElement) {
@@ -294,13 +306,21 @@ function TimeWindowSlider({
     onChange(Math.round(ratio * max));
   }
 
+  function releasePointer(target: HTMLDivElement, pointerId: number) {
+    if (target.hasPointerCapture(pointerId)) {
+      target.releasePointerCapture(pointerId);
+    }
+  }
+
   return (
     <div className="time-window-control">
       <div
         className="time-window-track"
         onPointerDown={(event) => {
           const target = event.currentTarget;
-          target.setPointerCapture(event.pointerId);
+          if (!target.hasPointerCapture(event.pointerId)) {
+            target.setPointerCapture(event.pointerId);
+          }
           updateFromPointer(event.clientX, target);
         }}
         onPointerMove={(event) => {
@@ -311,10 +331,16 @@ function TimeWindowSlider({
           updateFromPointer(event.clientX, event.currentTarget);
         }}
         onPointerUp={(event) => {
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          releasePointer(event.currentTarget, event.pointerId);
+        }}
+        onPointerCancel={(event) => {
+          releasePointer(event.currentTarget, event.pointerId);
+        }}
+        onLostPointerCapture={(event) => {
+          releasePointer(event.currentTarget, event.pointerId);
         }}
         role="slider"
-        aria-label="Time window position"
+        aria-label={t.window}
         aria-valuemax={max}
         aria-valuemin={0}
         aria-valuenow={value}
@@ -341,8 +367,8 @@ function TimeWindowSlider({
         />
       </div>
       <div className="time-window-labels">
-        <span>Start</span>
-        <span>End</span>
+        <span>{t.start}</span>
+        <span>{t.end}</span>
       </div>
     </div>
   );
@@ -350,6 +376,7 @@ function TimeWindowSlider({
 
 function aggregateTimeSeries(
   data: TimeSearchPoint[],
+  language: Language,
   windowKey: TimeWindowKey,
   offset: number,
 ) {
@@ -369,7 +396,10 @@ function aggregateTimeSeries(
   const startTime = new Date(sorted[0].timestamp).getTime();
   const endTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
   const hourMs = 60 * 60 * 1000;
-  const durationMs = windowOption.durationHours * hourMs;
+  const durationMs =
+    windowOption.durationHours === null
+      ? Math.max(endTime - startTime + hourMs, hourMs)
+      : windowOption.durationHours * hourMs;
   const maxOffset = Math.max(0, Math.ceil((endTime - startTime - durationMs) / hourMs));
   const safeOffset = Math.min(offset, maxOffset);
   const selectedStart = startTime + safeOffset * hourMs;
@@ -381,12 +411,18 @@ function aggregateTimeSeries(
   const bucket = new Map<string, number>();
   const labelFormatter =
     windowKey === "day"
-      ? new Intl.DateTimeFormat("en-US", {
+      ? new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
           day: "2-digit",
           hour: "2-digit",
           month: "short",
         })
-      : new Intl.DateTimeFormat("en-US", {
+      : windowKey === "all"
+        ? new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit",
+          })
+      : new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
           day: "2-digit",
           month: "short",
         });
@@ -405,10 +441,11 @@ function aggregateTimeSeries(
     label: labelFormatter.format(new Date(windowKey === "day" ? `${key}:00:00` : key)),
     searches,
   }));
-  const rangeFormatter = new Intl.DateTimeFormat("en-US", {
+  const rangeFormatter = new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
     day: "2-digit",
-    hour: windowKey === "month" || windowKey === "week" ? undefined : "2-digit",
+    hour: windowKey === "month" || windowKey === "week" || windowKey === "all" ? undefined : "2-digit",
     month: "short",
+    year: windowKey === "all" ? "2-digit" : undefined,
   });
 
   return {
@@ -421,10 +458,16 @@ function aggregateTimeSeries(
 function BarList({
   data,
   getLabel,
+  language,
 }: {
   data: Array<CategorySearchPoint | HourlySearchPoint>;
   getLabel: (item: CategorySearchPoint | HourlySearchPoint) => string;
+  language: Language;
 }) {
+  if (!data.length) {
+    return <p className="chart-empty">{translations[language].noData}</p>;
+  }
+
   const rawMax = Math.max(...data.map((item) => item.searches), 0);
   const max = Math.max(rawMax, 1);
 
@@ -446,9 +489,11 @@ function BarList({
 function NumericBarPlot({
   data,
   getLabel,
+  language,
 }: {
   data: Array<CategorySearchPoint | HourlySearchPoint>;
   getLabel: (item: CategorySearchPoint | HourlySearchPoint) => string;
+  language: Language;
 }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{
@@ -457,7 +502,7 @@ function NumericBarPlot({
   } | null>(null);
 
   if (!data.length) {
-    return <p className="chart-empty">No data for this selection.</p>;
+    return <p className="chart-empty">{translations[language].noData}</p>;
   }
 
   const rawMax = Math.max(...data.map((item) => item.searches), 0);
@@ -465,7 +510,7 @@ function NumericBarPlot({
   const width = 840;
   const height = 340;
   const padding = {
-    bottom: 56,
+    bottom: 92,
     left: 60,
     right: 28,
     top: 28,
@@ -488,8 +533,8 @@ function NumericBarPlot({
 
     setHoveredIndex(index);
     setTooltipPosition({
-      left: clamp((x / width) * bounds.width, 96, bounds.width - 96),
-      top: clamp((y / height) * bounds.height + 12, 12, bounds.height - 56),
+      left: clamp((x / width) * bounds.width, 120, bounds.width - 120),
+      top: clamp((y / height) * bounds.height + 14, 12, bounds.height - 68),
     });
   }
 
@@ -561,14 +606,15 @@ function NumericBarPlot({
                   }
                 }}
               >
-                <title>{`${label}: ${formatInteger(item.searches)} requests`}</title>
+                <title>{`${label}: ${formatInteger(item.searches)} ${translations[language].requests.toLowerCase()}`}</title>
               </rect>
               {shouldShowLabel ? (
                 <text
                   className="chart-x-label"
-                  textAnchor="middle"
+                  textAnchor="end"
+                  transform={`rotate(-38 ${x + barWidth / 2} ${height - 26})`}
                   x={x + barWidth / 2}
-                  y={height - 18}
+                  y={height - 26}
                 >
                   {axisLabel}
                 </text>
@@ -586,14 +632,21 @@ function NumericBarPlot({
           }}
         >
           <strong>{getLabel(hoveredItem)}</strong>
-          <span>{formatInteger(hoveredItem.searches)} requests</span>
+          <span>{formatInteger(hoveredItem.searches)} {translations[language].requests.toLowerCase()}</span>
         </div>
       ) : null}
     </div>
   );
 }
 
-function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
+function CategoryPieChart({
+  data,
+  language,
+}: {
+  data: CategorySearchPoint[];
+  language: Language;
+}) {
+  const t = translations[language];
   const sortedData = [...data].sort((left, right) => right.searches - left.searches);
   const mainCategories = sortedData.slice(0, 6);
   const otherSearches = sortedData
@@ -601,7 +654,7 @@ function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
     .reduce((sum, item) => sum + item.searches, 0);
   const chartData =
     otherSearches > 0
-      ? [...mainCategories, { category: "Other", searches: otherSearches }]
+      ? [...mainCategories, { category: language === "tr" ? "Diğer" : "Other", searches: otherSearches }]
       : mainCategories;
   const total = chartData.reduce((sum, item) => sum + item.searches, 0);
   const radius = 42;
@@ -609,7 +662,7 @@ function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
   let offset = 0;
 
   if (!data.length || total <= 0) {
-    return <p className="chart-empty">No category data for this selection.</p>;
+    return <p className="chart-empty">{t.noCategoryData}</p>;
   }
 
   return (
@@ -637,7 +690,7 @@ function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
                 strokeDashoffset: dashOffset,
               }}
             >
-              <title>{`${item.category}: ${formatInteger(item.searches)} requests`}</title>
+              <title>{`${translateCategory(item.category, language)}: ${formatInteger(item.searches)} ${t.requests.toLowerCase()}`}</title>
             </circle>
           );
         })}
@@ -645,7 +698,7 @@ function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
           {formatInteger(total)}
         </text>
         <text className="pie-chart-caption" x="60" y="72">
-          total
+          {t.totalRequests}
         </text>
       </svg>
       <div className="pie-legend">
@@ -659,7 +712,9 @@ function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
                   background: pieSegmentColors[index % pieSegmentColors.length],
                 }}
               />
-              <strong title={item.category}>{item.category}</strong>
+              <strong title={translateCategory(item.category, language)}>
+                {translateCategory(item.category, language)}
+              </strong>
               <em>{percent}%</em>
             </div>
           );
@@ -669,9 +724,15 @@ function CategoryPieChart({ data }: { data: CategorySearchPoint[] }) {
   );
 }
 
-function OrganizationList({ data }: { data: TopOrganization[] }) {
+function OrganizationList({
+  data,
+  language,
+}: {
+  data: TopOrganization[];
+  language: Language;
+}) {
   if (!data.length) {
-    return <p className="summary-empty">No organizations for this selection.</p>;
+    return <p className="summary-empty">{translations[language].noOrganizations}</p>;
   }
 
   return (
@@ -680,7 +741,7 @@ function OrganizationList({ data }: { data: TopOrganization[] }) {
         <div className="organization-row" key={`${organization.name}-${organization.category}`}>
           <div>
             <strong>{organization.name}</strong>
-            <span>{organization.category}</span>
+            <span>{translateCategory(organization.category, language)}</span>
           </div>
           <em>{organization.rating.toFixed(2)}</em>
         </div>
@@ -733,15 +794,18 @@ export function SelectionSummary({
   filters,
   heatmapPalette,
   isExpanded,
+  language,
   onExpandedChange,
   selection,
 }: {
   filters: DemandFilters;
   heatmapPalette: HeatmapPalette;
   isExpanded: boolean;
+  language: Language;
   onExpandedChange: (isExpanded: boolean) => void;
   selection: CoordinateMatch | null;
 }) {
+  const t = translations[language];
   const [overview, setOverview] = useState<DemandOverviewResponse | null>(null);
   const [provinceDemand, setProvinceDemand] =
     useState<ProvinceDemandResponse | null>(null);
@@ -756,7 +820,7 @@ export function SelectionSummary({
         setError(null);
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : "Failed to load");
+        setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
       });
   }, [filters]);
 
@@ -773,7 +837,7 @@ export function SelectionSummary({
       })
       .catch((loadError) => {
         setProvinceDemand(null);
-        setError(loadError instanceof Error ? loadError.message : "Failed to load");
+        setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
       });
   }, [filters, selection?.provinceNumber]);
 
@@ -787,15 +851,20 @@ export function SelectionSummary({
   const availableTimeWindowOptions = canShowDailyRequestChart
     ? timeWindowOptions
     : timeWindowOptions.filter((option) => option.key !== "day");
+  const topCategory = categoryBreakdown[0];
+  const peakHour = hourlyDistribution.reduce<HourlySearchPoint | null>(
+    (bestHour, hour) => !bestHour || hour.searches > bestHour.searches ? hour : bestHour,
+    null,
+  );
   const timeChart = useMemo(
-    () => aggregateTimeSeries(timeSeries, timeWindow, timeOffset),
-    [timeOffset, timeSeries, timeWindow],
+    () => aggregateTimeSeries(timeSeries, language, timeWindow, timeOffset),
+    [language, timeOffset, timeSeries, timeWindow],
   );
   const hasInsufficientProvinceData = Boolean(provinceDemand && !provinceDemand.summary);
-  const title = provinceDemand?.name ?? "Turkey overview";
+  const title = provinceDemand?.name ?? t.turkeyOverview;
   const subtitle = provinceDemand
-    ? `Province ${provinceDemand.province_number}`
-    : "All mapped provinces";
+    ? `${t.province} ${provinceDemand.province_number}`
+    : t.allMappedProvinces;
 
   useEffect(() => {
     if (!canShowDailyRequestChart && timeWindow === "day") {
@@ -804,18 +873,22 @@ export function SelectionSummary({
     }
   }, [canShowDailyRequestChart, timeWindow]);
 
+  useEffect(() => {
+    setTimeOffset(0);
+  }, [activeData?.updated_at, selection?.provinceNumber, timeWindow]);
+
   return (
     <section
       className="summary-panel"
-      aria-label="Selection summary"
+      aria-label={t.analytics}
       data-palette={heatmapPalette}
     >
       <div className="summary-header">
-        <span>Analytics</span>
+        <span>{t.analytics}</span>
         <div className="summary-actions">
-          <span>{selection?.regionName ? "Province" : "Overview"}</span>
+          <span>{selection?.regionName ? t.province : t.overview}</span>
           <button type="button" onClick={() => onExpandedChange(!isExpanded)}>
-            {isExpanded ? "Collapse" : "Expand"}
+            {isExpanded ? t.collapse : t.expand}
           </button>
         </div>
       </div>
@@ -826,19 +899,34 @@ export function SelectionSummary({
             <div>
               <strong>{selection?.regionName ?? title}</strong>
               <span>
-                {selection?.provinceNumber ? subtitle : "Select a province for details"}
+                {selection?.provinceNumber
+                  ? subtitle
+                  : t.selectProvinceHint}
               </span>
             </div>
           </div>
 
+          <dl className="summary-grid">
+            <MetricTile label={t.requests} value={formatInteger(summary.searches)} />
+            <MetricTile label={t.avgRating} value={summary.avg_rating.toFixed(2)} />
+            <MetricTile
+              label={t.topCategory}
+              value={topCategory ? formatAxisLabel(translateCategory(topCategory.category, language), 18) : "N/A"}
+            />
+            <MetricTile
+              label={t.peakHour}
+              value={peakHour ? `${peakHour.hour}:00` : "N/A"}
+            />
+          </dl>
+
           <div className="chart-block line-chart-block">
             <div className="chart-header">
-              <h3>Search requests</h3>
+              <h3>{t.searchRequests}</h3>
               <span>{timeChart.rangeLabel}</span>
             </div>
             <div className="chart-controls">
               <div className="time-window-picker">
-                <span>Window</span>
+                <span>{t.window}</span>
                 <div className="segmented-control">
                   {availableTimeWindowOptions.map((option) => (
                     <button
@@ -850,62 +938,62 @@ export function SelectionSummary({
                         setTimeOffset(0);
                       }}
                     >
-                      {option.label}
+                      {t[option.labelKey]}
                     </button>
                   ))}
                 </div>
               </div>
               {!canShowDailyRequestChart ? (
                 <p className="chart-note">
-                  Day view is hidden because at least one day has fewer than 5 requests.
+                  {t.dayViewHidden}
                 </p>
               ) : null}
-              <TimeWindowSlider
-                max={timeChart.maxOffset}
-                value={Math.min(timeOffset, timeChart.maxOffset)}
-                windowKey={timeWindow}
-                onChange={setTimeOffset}
-              />
+              {timeWindow !== "all" ? (
+                <TimeWindowSlider
+                  max={timeChart.maxOffset}
+                  language={language}
+                  value={Math.min(timeOffset, timeChart.maxOffset)}
+                  windowKey={timeWindow}
+                  onChange={setTimeOffset}
+                />
+              ) : null}
             </div>
-            <MiniLineChart data={timeChart.points} isExpanded={isExpanded} />
+            <MiniLineChart
+              data={timeChart.points}
+              isExpanded={isExpanded}
+              language={language}
+            />
           </div>
 
           {isExpanded ? (
             <div className="expanded-chart-grid">
-              <div className="chart-block full-width-bar-chart">
-                <div className="chart-header">
-                  <h3>Request types</h3>
-                </div>
-                <NumericBarPlot
-                  data={categoryBreakdown}
-                  getLabel={(item) => "category" in item ? item.category : String(item.hour)}
-                />
-              </div>
               <div className="chart-block full-width-chart">
                 <div className="chart-header">
-                  <h3>Category distribution</h3>
+                  <h3>{t.categoryDistribution}</h3>
                 </div>
-                <CategoryPieChart data={categoryBreakdown} />
+                <CategoryPieChart data={categoryBreakdown} language={language} />
               </div>
               <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
-                  <h3>Hourly distribution</h3>
+                  <h3>{t.hourlyDistribution}</h3>
                 </div>
                 <NumericBarPlot
                   data={hourlyDistribution}
-                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
+                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : translateCategory(item.category, language)}
+                  language={language}
                 />
               </div>
               <div className="chart-block full-width-chart">
                 <div className="chart-header">
-                  <h3>{provinceDemand ? "Categories" : "Top provinces"}</h3>
+                  <h3>{provinceDemand ? t.categories : t.topProvinces}</h3>
                 </div>
                 {provinceDemand ? (
                   <BarList
                     data={provinceDemand.category_breakdown}
                     getLabel={(item) =>
-                      "category" in item ? item.category : String(item.hour)
+                      "category" in item ? translateCategory(item.category, language) : String(item.hour)
                     }
+                    language={language}
                   />
                 ) : overview ? (
                   <BarList
@@ -916,73 +1004,61 @@ export function SelectionSummary({
                     getLabel={(item) =>
                       "category" in item ? item.category : String(item.hour)
                     }
+                    language={language}
                   />
                 ) : null}
               </div>
             </div>
           ) : provinceDemand ? (
             <>
-              <div className="chart-block full-width-bar-chart">
-                <div className="chart-header">
-                  <h3>Categories</h3>
-                </div>
-                <NumericBarPlot
-                  data={provinceDemand.category_breakdown}
-                  getLabel={(item) => "category" in item ? item.category : String(item.hour)}
-                />
-              </div>
               <div className="chart-block full-width-chart">
                 <div className="chart-header">
-                  <h3>Category distribution</h3>
+                  <h3>{t.categoryDistribution}</h3>
                 </div>
-                <CategoryPieChart data={provinceDemand.category_breakdown} />
+                <CategoryPieChart
+                  data={provinceDemand.category_breakdown}
+                  language={language}
+                />
               </div>
               <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
-                  <h3>Hours</h3>
+                  <h3>{t.hours}</h3>
                 </div>
                 <NumericBarPlot
                   data={provinceDemand.hourly_distribution}
-                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
+                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : translateCategory(item.category, language)}
+                  language={language}
                 />
               </div>
               <div className="chart-block top-organizations-block">
                 <div className="chart-header">
-                  <h3>Top 5 organizations</h3>
-                  <span>Rating</span>
+                  <h3>{t.top5Organizations}</h3>
+                  <span>{t.rating}</span>
                 </div>
-                <OrganizationList data={topOrganizations} />
+                <OrganizationList data={topOrganizations} language={language} />
               </div>
             </>
           ) : overview ? (
             <>
-              <div className="chart-block full-width-bar-chart">
-                <div className="chart-header">
-                  <h3>Request types</h3>
-                </div>
-                <NumericBarPlot
-                  data={overview.category_breakdown}
-                  getLabel={(item) => "category" in item ? item.category : String(item.hour)}
-                />
-              </div>
               <div className="chart-block full-width-chart">
                 <div className="chart-header">
-                  <h3>Category distribution</h3>
+                  <h3>{t.categoryDistribution}</h3>
                 </div>
-                <CategoryPieChart data={overview.category_breakdown} />
+                <CategoryPieChart data={overview.category_breakdown} language={language} />
               </div>
               <div className="chart-block full-width-bar-chart">
                 <div className="chart-header">
-                  <h3>Hours</h3>
+                  <h3>{t.hours}</h3>
                 </div>
                 <NumericBarPlot
                   data={overview.hourly_distribution}
-                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : item.category}
+                  getLabel={(item) => "hour" in item ? `${item.hour}:00` : translateCategory(item.category, language)}
+                  language={language}
                 />
               </div>
               <div className="chart-block">
                 <div className="chart-header">
-                  <h3>Top provinces</h3>
+                  <h3>{t.topProvinces}</h3>
                 </div>
                 <BarList
                   data={overview.top_provinces.map((province) => ({
@@ -990,14 +1066,15 @@ export function SelectionSummary({
                     searches: province.summary.searches,
                   }))}
                   getLabel={(item) => "category" in item ? item.category : String(item.hour)}
+                  language={language}
                 />
               </div>
               <div className="chart-block top-organizations-block">
                 <div className="chart-header">
-                  <h3>Top 5 organizations</h3>
-                  <span>Rating</span>
+                  <h3>{t.top5Organizations}</h3>
+                  <span>{t.rating}</span>
                 </div>
-                <OrganizationList data={topOrganizations} />
+                <OrganizationList data={topOrganizations} language={language} />
               </div>
             </>
           ) : null}
@@ -1006,16 +1083,16 @@ export function SelectionSummary({
           selection.latitude !== null &&
           selection.longitude !== null ? (
             <dl className="coordinate-grid">
-              <MetricTile label="Latitude" value={selection.latitude.toFixed(6)} />
-              <MetricTile label="Longitude" value={selection.longitude.toFixed(6)} />
+              <MetricTile label={t.latitude} value={selection.latitude.toFixed(6)} />
+              <MetricTile label={t.longitude} value={selection.longitude.toFixed(6)} />
             </dl>
           ) : null}
         </div>
       ) : (
         <div className="summary-empty">
           {hasInsufficientProvinceData
-            ? "Данных недостаточно для построения графиков."
-            : error ?? "Loading demand analytics..."}
+            ? t.notEnoughData
+            : error ?? t.loadingAnalytics}
         </div>
       )}
     </section>

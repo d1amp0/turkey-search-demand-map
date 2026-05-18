@@ -12,6 +12,9 @@ from api.demand_data import get_province_detail
 from api.demand_data import get_region_values
 from api.demand_data import DemandFilters
 from api.demand_data import MetricName
+from api.ml_prediction import PredictionRequest
+from api.ml_prediction import get_model_info
+from api.ml_prediction import predict_demand
 from api.settings import FRONTEND_DIST_DIR, GEOJSON_PATH
 
 
@@ -50,6 +53,16 @@ def metrics() -> dict:
 @app.get("/api/categories")
 def categories() -> list[str]:
     return get_category_catalog()
+
+
+@app.get("/api/ml/model-info")
+def ml_model_info() -> dict:
+    return get_model_info()
+
+
+@app.post("/api/ml/predict")
+def ml_predict(payload: PredictionRequest) -> dict:
+    return predict_demand(payload).dict()
 
 
 @app.get("/api/demand/region-values")

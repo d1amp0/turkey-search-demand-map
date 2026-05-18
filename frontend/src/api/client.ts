@@ -7,6 +7,11 @@ import type {
   TurkeyProvinceProperties,
 } from "../types/region";
 import type { DemandFilters } from "../types/filters";
+import type {
+  ModelInfoResponse,
+  PredictionRequest,
+  PredictionResponse,
+} from "../types/ml";
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { cache: "no-store" });
@@ -23,6 +28,26 @@ async function getJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function postJson<TResponse, TPayload>(url: string, payload: TPayload): Promise<TResponse> {
+  const response = await fetch(url, {
+    body: JSON.stringify(payload),
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = contentType.includes("application/json") ? await response.json() : null;
+
+  if (!response.ok) {
+    const detail = body && typeof body.detail === "string" ? body.detail : null;
+    throw new Error(detail ?? `${url} returned ${response.status}`);
+  }
+
+  return body as TResponse;
+}
+
 export function fetchTurkeyGeoJson() {
   return getJson<FeatureCollection<Geometry, TurkeyProvinceProperties>>(
     "/tr-cities.json",
@@ -31,6 +56,14 @@ export function fetchTurkeyGeoJson() {
 
 export function fetchDemandCategories() {
   return getJson<string[]>("/api/categories");
+}
+
+export function fetchModelInfo() {
+  return getJson<ModelInfoResponse>("/api/ml/model-info");
+}
+
+export function predictDemand(payload: PredictionRequest) {
+  return postJson<PredictionResponse, PredictionRequest>("/api/ml/predict", payload);
 }
 
 function demandQuery(filters: DemandFilters) {

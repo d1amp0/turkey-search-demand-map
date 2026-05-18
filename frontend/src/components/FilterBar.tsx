@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchDemandCategories, fetchTurkeyGeoJson } from "../api/client";
+import { translations, translateCategory } from "../i18n";
 import type { DemandFilters } from "../types/filters";
+import type { Language } from "../i18n";
 
 type FilterMenu =
   | "metric"
@@ -28,14 +30,26 @@ const hourRanges = [
   "22-23",
 ];
 
-const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const weekdays = [
+  { label: { en: "Mon", tr: "Pzt" }, value: "Mon" },
+  { label: { en: "Tue", tr: "Sal" }, value: "Tue" },
+  { label: { en: "Wed", tr: "Çar" }, value: "Wed" },
+  { label: { en: "Thu", tr: "Per" }, value: "Thu" },
+  { label: { en: "Fri", tr: "Cum" }, value: "Fri" },
+  { label: { en: "Sat", tr: "Cmt" }, value: "Sat" },
+  { label: { en: "Sun", tr: "Paz" }, value: "Sun" },
+];
 const metrics = [
-  { key: "searches", label: "Popularity" },
-  { key: "avg_rating", label: "Rating" },
+  { key: "searches", labelKey: "popularity" },
+  { key: "avg_rating", labelKey: "rating" },
 ] as const;
 const ratingThresholds = ["Any rating", "3.0+", "4.0+", "4.5+"];
 
-function summaryLabel(values: string[], fallback: string) {
+function summaryLabel(
+  values: string[],
+  fallback: string,
+  language: Language,
+) {
   if (!values.length) {
     return fallback;
   }
@@ -44,16 +58,21 @@ function summaryLabel(values: string[], fallback: string) {
     return values[0];
   }
 
-  return `${values.length} selected`;
+  return `${values.length} ${translations[language].selectedCount}`;
 }
 
 export function FilterBar({
   filters,
+  language,
   onFiltersChange,
+  resetVersion,
 }: {
   filters: DemandFilters;
+  language: Language;
   onFiltersChange: (filters: DemandFilters) => void;
+  resetVersion: number;
 }) {
+  const t = translations[language];
   const [openMenu, setOpenMenu] = useState<FilterMenu>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [provinceSearch, setProvinceSearch] = useState("");
@@ -96,6 +115,15 @@ export function FilterBar({
   }, []);
 
   useEffect(() => {
+    if (resetVersion === 0) {
+      return;
+    }
+
+    setOpenMenu(null);
+    setProvinceSearch("");
+  }, [resetVersion]);
+
+  useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) {
         setOpenMenu(null);
@@ -123,8 +151,8 @@ export function FilterBar({
 
   const timeSummary =
     filters.hourRanges.length + filters.weekdays.length > 0
-      ? `${filters.hourRanges.length + filters.weekdays.length} selected`
-      : "Time";
+      ? `${filters.hourRanges.length + filters.weekdays.length} ${t.selectedCount}`
+      : t.time;
 
   const selectedProvinceNames = provinces
     .filter((province) => filters.provinceNumbers.includes(province.number))
@@ -139,14 +167,15 @@ export function FilterBar({
           aria-expanded={openMenu === "metric"}
           onClick={() => setOpenMenu(openMenu === "metric" ? null : "metric")}
         >
-          {metrics.find((metric) => metric.key === filters.metric)?.label ?? "Metric"}
+          {t[metrics.find((metric) => metric.key === filters.metric)?.labelKey ?? "metric"]}
         </button>
 
         {openMenu === "metric" ? (
           <div className="filter-popover metric-popover">
             <div className="filter-section-header">
-              <span>Map metric</span>
+              <span>{t.mapMetric}</span>
             </div>
+            <p className="filter-help">{t.mapMetricHelp}</p>
             <div className="organization-list-options">
               {metrics.map((metric) => (
                 <label className="region-option" key={metric.key}>
@@ -156,7 +185,7 @@ export function FilterBar({
                     type="radio"
                     onChange={() => updateFilters({ metric: metric.key })}
                   />
-                  <span>{metric.label}</span>
+                  <span>{t[metric.labelKey]}</span>
                 </label>
               ))}
             </div>
@@ -176,11 +205,12 @@ export function FilterBar({
 
         {openMenu === "time" ? (
           <div className="filter-popover time-popover">
+            <p className="filter-help">{t.timeFilterHelp}</p>
             <div className="filter-section">
               <div className="filter-section-header">
-                <span>Hours</span>
+                <span>{t.hours}</span>
                 <button type="button" onClick={() => updateFilters({ hourRanges: [] })}>
-                  Clear
+                  {t.clear}
                 </button>
               </div>
               <div className="chip-grid hours-grid">
@@ -199,20 +229,20 @@ export function FilterBar({
 
             <div className="filter-section">
               <div className="filter-section-header">
-                <span>Days</span>
+                <span>{t.days}</span>
                 <button type="button" onClick={() => updateFilters({ weekdays: [] })}>
-                  Clear
+                  {t.clear}
                 </button>
               </div>
               <div className="chip-grid days-grid">
                 {weekdays.map((weekday) => (
                   <button
                     type="button"
-                    className={filters.weekdays.includes(weekday) ? "chip active" : "chip"}
-                    key={weekday}
-                    onClick={() => toggleFilterValue("weekdays", weekday)}
+                    className={filters.weekdays.includes(weekday.value) ? "chip active" : "chip"}
+                    key={weekday.value}
+                    onClick={() => toggleFilterValue("weekdays", weekday.value)}
                   >
-                    {weekday}
+                    {weekday.label[language]}
                   </button>
                 ))}
               </div>
@@ -232,17 +262,22 @@ export function FilterBar({
             setOpenMenu(openMenu === "organizations" ? null : "organizations")
           }
         >
-          {summaryLabel(filters.categories, "Organizations")}
+          {summaryLabel(
+            filters.categories.map((category) => translateCategory(category, language)),
+            t.organizations,
+            language,
+          )}
         </button>
 
         {openMenu === "organizations" ? (
           <div className="filter-popover organizations-popover">
             <div className="filter-section-header">
-              <span>Organization type</span>
+              <span>{t.organizationType}</span>
               <button type="button" onClick={() => updateFilters({ categories: [] })}>
-                Clear
+                {t.clear}
               </button>
             </div>
+            <p className="filter-help">{t.organizationTypeHelp}</p>
             <div className="organization-list-options">
               {categories.map((category) => (
                 <label className="region-option" key={category}>
@@ -251,7 +286,7 @@ export function FilterBar({
                     type="checkbox"
                     onChange={() => toggleFilterValue("categories", category)}
                   />
-                  <span>{category}</span>
+                  <span>{translateCategory(category, language)}</span>
                 </label>
               ))}
             </div>
@@ -268,20 +303,21 @@ export function FilterBar({
           aria-expanded={openMenu === "provinces"}
           onClick={() => setOpenMenu(openMenu === "provinces" ? null : "provinces")}
         >
-          {summaryLabel(selectedProvinceNames, "Provinces")}
+          {summaryLabel(selectedProvinceNames, t.provinces, language)}
         </button>
 
         {openMenu === "provinces" ? (
           <div className="filter-popover provinces-popover">
             <div className="filter-section-header">
-              <span>Query province</span>
+              <span>{t.queryProvince}</span>
               <button type="button" onClick={() => updateFilters({ provinceNumbers: [] })}>
-                Clear
+                {t.clear}
               </button>
             </div>
+            <p className="filter-help">{t.provinceSearchHelp}</p>
             <input
               className="province-search"
-              placeholder="Search province"
+              placeholder={t.searchProvince}
               value={provinceSearch}
               onChange={(event) => setProvinceSearch(event.target.value)}
             />
@@ -308,14 +344,15 @@ export function FilterBar({
           aria-expanded={openMenu === "rating"}
           onClick={() => setOpenMenu(openMenu === "rating" ? null : "rating")}
         >
-          {filters.rating === "Any rating" ? "Any rating" : filters.rating}
+          {filters.rating === "Any rating" ? t.anyRating : filters.rating}
         </button>
 
         {openMenu === "rating" ? (
           <div className="filter-popover metric-popover">
             <div className="filter-section-header">
-              <span>Rating</span>
+              <span>{t.rating}</span>
             </div>
+            <p className="filter-help">{t.ratingHelp}</p>
             <div className="chip-grid rating-grid">
               {ratingThresholds.map((rating) => (
                 <button
@@ -324,7 +361,7 @@ export function FilterBar({
                   key={rating}
                   onClick={() => updateFilters({ rating })}
                 >
-                  {rating}
+                  {rating === "Any rating" ? t.anyRating : rating}
                 </button>
               ))}
             </div>
