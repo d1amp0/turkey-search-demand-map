@@ -1,4 +1,4 @@
-# Turkey Search Demand Map
+# Turkey Search Demand Map (by Anton Moskvin)
 
 An interactive analytics map for exploring geo-search demand across Turkey. The web app shows province-level heatmaps, filters requests by time and category, and supports demand forecasting with a machine-learning model.
 
