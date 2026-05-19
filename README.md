@@ -136,8 +136,3 @@ Interactive API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) w
 | `ds/splitting/`     | Split cleaned data for downstream use                     |
 | `ds/ml/`            | Model training and evaluation                             |
 | `ds/analysis/`      | Exploratory analysis                                      |
-
-
-## License
-
-Add a license file if you plan to distribute this project publicly.
