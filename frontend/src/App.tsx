@@ -7,6 +7,7 @@ import type { Language } from "./i18n";
 import { heatmapPalettes } from "./types/palette";
 import type { HeatmapPalette } from "./types/palette";
 import type { CoordinateMatch } from "./types/selection";
+import type { PredictionWindow, RecursivePredictionPoint } from "./types/ml";
 
 type Theme = "light" | "dark";
 const PredictPanel = lazy(() =>
@@ -35,6 +36,8 @@ export function App() {
   const [heatmapPalette, setHeatmapPalette] = useState<HeatmapPalette>("blue");
   const [resetVersion, setResetVersion] = useState(0);
   const [isAnalyticsReady, setIsAnalyticsReady] = useState(false);
+  const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(null);
+  const [recursivePredictions, setRecursivePredictions] = useState<RecursivePredictionPoint[]>([]);
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -51,6 +54,8 @@ export function App() {
     setHeatmapPalette("blue");
     setSelection(null);
     setIsPanelExpanded(false);
+    setPredictionWindow(null);
+    setRecursivePredictions([]);
     setResetVersion((version) => version + 1);
   }
 
@@ -74,6 +79,11 @@ export function App() {
       window.clearTimeout(handle);
     };
   }, []);
+
+  useEffect(() => {
+    setPredictionWindow(null);
+    setRecursivePredictions([]);
+  }, [resetVersion, selection?.provinceNumber]);
 
   return (
     <main
@@ -145,8 +155,10 @@ export function App() {
               {selection?.provinceNumber ? (
                 <PredictPanel
                   language={language}
+                  predictionWindow={predictionWindow}
                   resetVersion={resetVersion}
                   selection={selection}
+                  onPredictionsChange={setRecursivePredictions}
                 />
               ) : null}
               <SelectionSummary
@@ -155,6 +167,8 @@ export function App() {
                 heatmapPalette={heatmapPalette}
                 language={language}
                 onExpandedChange={setIsPanelExpanded}
+                onPredictionWindowChange={setPredictionWindow}
+                predictionData={recursivePredictions}
                 selection={selection}
               />
             </Suspense>

@@ -1,35 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchModelInfo, predictDemand } from "../api/client";
+import { fetchModelInfo, predictDemandRecursive } from "../api/client";
 import { translations } from "../i18n";
-import type { ModelInfoResponse } from "../types/ml";
+import type {
+  ModelInfoResponse,
+  PredictionWindow,
+  RecursivePredictionPoint,
+} from "../types/ml";
 import type { CoordinateMatch } from "../types/selection";
 import type { Language } from "../i18n";
 
-function formatPrediction(value: number | string | unknown[]) {
-  if (typeof value === "number") {
-    return new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 3,
-    }).format(value);
-  }
-
-  return Array.isArray(value) ? JSON.stringify(value) : value;
-}
-
 export function PredictPanel({
   language,
+  predictionWindow,
   resetVersion,
   selection,
+  onPredictionsChange,
 }: {
   language: Language;
+  predictionWindow: PredictionWindow;
   resetVersion: number;
   selection: CoordinateMatch | null;
+  onPredictionsChange: (points: RecursivePredictionPoint[]) => void;
 }) {
   const t = translations[language];
   const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
-  const [prediction, setPrediction] = useState<number | string | unknown[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const canPredict = Boolean(selection?.provinceNumber);
+  const canPredict = Boolean(selection?.provinceNumber && predictionWindow);
 
   useEffect(() => {
     void fetchModelInfo()
@@ -40,9 +37,9 @@ export function PredictPanel({
   }, [t.modelInfoFailed]);
 
   useEffect(() => {
-    setPrediction(null);
     setError(null);
-  }, [resetVersion, selection?.provinceNumber]);
+    onPredictionsChange([]);
+  }, [onPredictionsChange, predictionWindow, resetVersion, selection?.provinceNumber]);
 
   const modelStatus = useMemo(() => {
     if (!modelInfo) {
@@ -53,19 +50,21 @@ export function PredictPanel({
   }, [modelInfo, t.checkingModel, t.modelFileMissing, t.modelReady]);
 
   async function handlePredict() {
-    if (!selection?.provinceNumber) {
+    if (!selection?.provinceNumber || !predictionWindow) {
       return;
     }
 
     setError(null);
-    setPrediction(null);
+    onPredictionsChange([]);
     setIsLoading(true);
 
     try {
-      const response = await predictDemand({
+      const response = await predictDemandRecursive({
+        hours: predictionWindow.hours,
         province_number: selection.provinceNumber,
+        start_timestamp: predictionWindow.startTimestamp,
       });
-      setPrediction(response.prediction);
+      onPredictionsChange(response.points);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t.predictionFailed);
     } finally {
@@ -80,9 +79,6 @@ export function PredictPanel({
           <h2>{t.mlPredict}</h2>
           <span>{modelStatus}</span>
         </div>
-        {prediction !== null ? (
-          <strong className="predict-result">{formatPrediction(prediction)}</strong>
-        ) : null}
       </div>
       <p className="predict-help">
         {canPredict

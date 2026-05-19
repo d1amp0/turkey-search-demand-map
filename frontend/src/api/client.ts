@@ -11,6 +11,8 @@ import type {
   ModelInfoResponse,
   PredictionRequest,
   PredictionResponse,
+  RecursivePredictionRequest,
+  RecursivePredictionResponse,
 } from "../types/ml";
 
 async function getJson<T>(url: string): Promise<T> {
@@ -73,6 +75,13 @@ export function fetchModelInfo() {
 
 export function predictDemand(payload: PredictionRequest) {
   return postJson<PredictionResponse, PredictionRequest>("/api/ml/predict", payload);
+}
+
+export function predictDemandRecursive(payload: RecursivePredictionRequest) {
+  return postJson<RecursivePredictionResponse, RecursivePredictionRequest>(
+    "/api/ml/predict-recursive",
+    payload,
+  );
 }
 
 function demandQuery(filters: DemandFilters) {

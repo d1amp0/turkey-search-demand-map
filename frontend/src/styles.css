@@ -706,6 +706,26 @@
     color: var(--text);
   }
 
+  .line-chart-legend {
+    @apply absolute top-3 left-3 z-[1] flex flex-wrap items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs;
+    background: color-mix(in srgb, var(--card-background) 86%, transparent);
+    border-color: var(--border);
+    color: var(--muted-text);
+  }
+
+  .line-chart-legend span {
+    @apply flex items-center gap-1.5 leading-tight;
+  }
+
+  .line-chart-legend i {
+    @apply block h-0.5 w-5 rounded-full;
+    background: var(--accent);
+  }
+
+  .line-chart-legend i[data-series="prediction"] {
+    background: #f97316;
+  }
+
   .line-chart-tooltip {
     @apply pointer-events-none absolute z-[2] grid w-max max-w-[220px] -translate-x-1/2 gap-0.5 rounded-md border px-2.5 py-1.5 text-left text-xs leading-tight shadow-[0_10px_24px_rgba(15,23,42,0.18)];
     background: var(--card-background);
@@ -927,12 +947,21 @@
   color: #b91c1c;
 }
 
-.mini-line-chart polyline {
+.mini-line-chart .actual-line,
+.mini-line-chart .prediction-line {
   fill: none;
-  stroke: var(--accent);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.8;
+}
+
+.mini-line-chart .actual-line {
+  stroke: var(--accent);
+}
+
+.mini-line-chart .prediction-line {
+  stroke: #f97316;
+  stroke-dasharray: 8 6;
 }
 
 .chart-grid-line {
@@ -950,6 +979,12 @@
   fill: var(--card-background);
   stroke: var(--accent);
   stroke-width: 2;
+}
+
+.prediction-chart-point {
+  fill: var(--card-background);
+  stroke: #f97316;
+  stroke-width: 1.8;
 }
 
 .chart-hover-line {

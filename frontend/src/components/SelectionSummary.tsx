@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchDemandOverview, fetchProvinceDemand } from "../api/client";
+import {
+  fetchDemandOverview,
+  fetchProvinceDemand,
+} from "../api/client";
 import { translations, translateCategory } from "../i18n";
 import type { DemandFilters } from "../types/filters";
 import type { Language } from "../i18n";
 import type { HeatmapPalette } from "../types/palette";
+import type { PredictionWindow, RecursivePredictionPoint } from "../types/ml";
 import type {
   CategorySearchPoint,
   DemandOverviewResponse,
@@ -23,8 +27,16 @@ const timeWindowOptions = [
 
 type TimeWindowKey = (typeof timeWindowOptions)[number]["key"];
 type ChartPoint = {
+  key: string;
   label: string;
   searches: number;
+  time: number;
+};
+type PredictionChartPoint = {
+  key: string;
+  label: string;
+  prediction: number;
+  time: number;
 };
 
 const pieSegmentColors = [
@@ -48,6 +60,40 @@ function formatInteger(value: number) {
 
 function formatAxisLabel(value: string, maxLength = 12) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
+}
+
+function formatLocalHourTimestamp(timestamp: number) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hour}:00:00`;
+}
+
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function addHours(timestamp: number, hours: number) {
+  return timestamp + hours * 60 * 60 * 1000;
+}
+
+function bucketKeyForTimestamp(timestamp: Date, windowKey: TimeWindowKey) {
+  if (windowKey === "day") {
+    return formatLocalHourTimestamp(timestamp.getTime()).slice(0, 13);
+  }
+
+  return formatLocalDateKey(timestamp);
+}
+
+function dateFromBucketKey(key: string, windowKey: TimeWindowKey) {
+  return new Date(windowKey === "day" ? `${key}:00:00` : `${key}T00:00:00`);
 }
 
 function getYAxisTicks(max: number) {
@@ -78,10 +124,12 @@ function MiniLineChart({
   data,
   isExpanded,
   language,
+  predictionData = [],
 }: {
   data: ChartPoint[];
   isExpanded: boolean;
   language: Language;
+  predictionData?: PredictionChartPoint[];
 }) {
   const t = translations[language];
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -90,7 +138,11 @@ function MiniLineChart({
     top: number;
   } | null>(null);
   const chart = useMemo(() => {
-    const max = Math.max(...data.map((item) => item.searches), 0);
+    const max = Math.max(
+      ...data.map((item) => item.searches),
+      ...predictionData.map((item) => item.prediction),
+      0,
+    );
     const safeMax = Math.max(max, 1);
     const width = isExpanded ? 1440 : 840;
     const height = isExpanded ? 260 : 230;
@@ -102,11 +154,31 @@ function MiniLineChart({
     };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const coordinates = data.map((item, index) => {
+    const allTimes = [
+      ...data.map((item) => item.time),
+      ...predictionData.map((item) => item.time),
+    ];
+    const minTime = Math.min(...allTimes);
+    const maxTime = Math.max(...allTimes);
+    const timeRange = Math.max(maxTime - minTime, 1);
+    const xForTime = (time: number) =>
+      padding.left +
+      (allTimes.length === 1 ? plotWidth / 2 : ((time - minTime) / timeRange) * plotWidth);
+    const coordinates = data.map((item) => {
+      const x = xForTime(item.time);
+      const y = padding.top + plotHeight - (item.searches / safeMax) * plotHeight;
+
+      return {
+        ...item,
+        x,
+        y,
+      };
+    });
+    const predictionCoordinates = predictionData.map((item) => {
       const x =
         padding.left +
-        (data.length === 1 ? plotWidth / 2 : (index / (data.length - 1)) * plotWidth);
-      const y = padding.top + plotHeight - (item.searches / safeMax) * plotHeight;
+        (allTimes.length === 1 ? plotWidth / 2 : ((item.time - minTime) / timeRange) * plotWidth);
+      const y = padding.top + plotHeight - (item.prediction / safeMax) * plotHeight;
 
       return {
         ...item,
@@ -123,10 +195,12 @@ function MiniLineChart({
       plotHeight,
       plotWidth,
       points: coordinates.map((item) => `${item.x},${item.y}`).join(" "),
+      predictionPoints: predictionCoordinates.map((item) => `${item.x},${item.y}`).join(" "),
+      predictionCoordinates,
       total: data.reduce((sum, item) => sum + item.searches, 0),
       width,
     };
-  }, [data, isExpanded]);
+  }, [data, isExpanded, predictionData]);
 
   if (!data.length) {
     return <p className="chart-empty">{t.noRequests}</p>;
@@ -136,6 +210,7 @@ function MiniLineChart({
   const lastLabel = data.at(-1)?.label ?? "";
   const yTicks = getYAxisTicks(chart.max);
   const hoveredPoint = hoveredIndex === null ? null : chart.coordinates[hoveredIndex];
+  const hasPredictionLine = chart.predictionCoordinates.length > 0;
 
   function getNearestPoint(clientX: number, target: SVGSVGElement) {
     const bounds = target.getBoundingClientRect();
@@ -174,6 +249,12 @@ function MiniLineChart({
       <div className="line-chart-metric">
         <span>{t.totalRequests}</span>
         <strong>{formatInteger(chart.total)}</strong>
+      </div>
+      <div className="line-chart-legend">
+        <span><i data-series="actual" />{t.requests}</span>
+        {hasPredictionLine ? (
+          <span><i data-series="prediction" />{t.predictedRequests}</span>
+        ) : null}
       </div>
       <svg
         className="mini-line-chart"
@@ -220,7 +301,23 @@ function MiniLineChart({
           y1={chart.padding.top + chart.plotHeight}
           y2={chart.padding.top + chart.plotHeight}
         />
-        <polyline points={chart.points} />
+        <polyline className="actual-line" points={chart.points} />
+        {hasPredictionLine ? (
+          <polyline className="prediction-line" points={chart.predictionPoints}>
+            <title>{t.predictedRequests}</title>
+          </polyline>
+        ) : null}
+        {chart.predictionCoordinates.map((item, index) => (
+          <circle
+            className="prediction-chart-point"
+            cx={item.x}
+            cy={item.y}
+            key={`${item.key}-${index}`}
+            r={predictionData.length > 24 && index % 2 !== 0 ? 1.8 : 2.8}
+          >
+            <title>{`${item.label}: ${formatInteger(item.prediction)} ${t.predictedRequests.toLowerCase()}`}</title>
+          </circle>
+        ))}
         {chart.coordinates.map((item, index) => (
           <circle
             className="chart-point"
@@ -384,6 +481,9 @@ function aggregateTimeSeries(
     return {
       maxOffset: 0,
       points: [] as ChartPoint[],
+      predictionAnchorPoint: null as ChartPoint | null,
+      predictionStartTimestamp: null as string | null,
+      predictionHours: 0,
       rangeLabel: "",
     };
   }
@@ -404,6 +504,7 @@ function aggregateTimeSeries(
   const safeOffset = Math.min(offset, maxOffset);
   const selectedStart = startTime + safeOffset * hourMs;
   const selectedEnd = selectedStart + durationMs;
+  const selectedRangeEnd = Math.max(selectedStart, Math.min(selectedEnd - hourMs, endTime));
   const selected = sorted.filter((item) => {
     const timestamp = new Date(item.timestamp).getTime();
     return timestamp >= selectedStart && timestamp < selectedEnd;
@@ -429,18 +530,24 @@ function aggregateTimeSeries(
 
   selected.forEach((item) => {
     const timestamp = new Date(item.timestamp);
-    const key =
-      windowKey === "day"
-        ? timestamp.toISOString().slice(0, 13)
-        : timestamp.toISOString().slice(0, 10);
+    const key = bucketKeyForTimestamp(timestamp, windowKey);
 
     bucket.set(key, (bucket.get(key) ?? 0) + item.searches);
   });
 
   const points = Array.from(bucket.entries()).map(([key, searches]) => ({
-    label: labelFormatter.format(new Date(windowKey === "day" ? `${key}:00:00` : key)),
+    key,
+    label: labelFormatter.format(dateFromBucketKey(key, windowKey)),
     searches,
+    time: dateFromBucketKey(key, windowKey).getTime(),
   }));
+  const anchorPoint = points[0] ?? null;
+  const predictionStartTime = anchorPoint ? addHours(anchorPoint.time, 1) : selectedStart;
+  const predictionEndTime = points.at(-1)?.time ?? selectedRangeEnd;
+  const predictionHours = Math.min(
+    24 * 30,
+    Math.max(1, Math.floor((predictionEndTime - predictionStartTime) / hourMs) + 1),
+  );
   const rangeFormatter = new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
     day: "2-digit",
     hour: windowKey === "month" || windowKey === "week" || windowKey === "all" ? undefined : "2-digit",
@@ -450,9 +557,66 @@ function aggregateTimeSeries(
 
   return {
     maxOffset,
+    predictionAnchorPoint: anchorPoint,
     points,
-    rangeLabel: `${rangeFormatter.format(new Date(selectedStart))} - ${rangeFormatter.format(new Date(Math.min(selectedEnd, endTime)))}`,
+    predictionStartTimestamp: formatLocalHourTimestamp(predictionStartTime),
+    predictionHours,
+    rangeLabel: `${rangeFormatter.format(new Date(selectedStart))} - ${rangeFormatter.format(new Date(selectedRangeEnd))}`,
   };
+}
+
+function aggregateRecursivePredictionSeries(
+  data: RecursivePredictionPoint[],
+  language: Language,
+  windowKey: TimeWindowKey,
+  anchorPoint: ChartPoint | null,
+) {
+  const bucket = new Map<string, number>();
+  const labelFormatter =
+    windowKey === "day"
+      ? new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
+          day: "2-digit",
+          hour: "2-digit",
+          month: "short",
+        })
+      : windowKey === "all"
+        ? new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit",
+          })
+        : new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
+            day: "2-digit",
+            month: "short",
+          });
+
+  data.forEach((item) => {
+    const timestamp = new Date(item.timestamp);
+    const key = bucketKeyForTimestamp(timestamp, windowKey);
+
+    bucket.set(key, (bucket.get(key) ?? 0) + item.prediction);
+  });
+
+  const points = Array.from(bucket.entries()).map(([key, prediction]) => ({
+    key,
+    label: labelFormatter.format(dateFromBucketKey(key, windowKey)),
+    prediction,
+    time: dateFromBucketKey(key, windowKey).getTime(),
+  }));
+
+  if (!anchorPoint || !data.length) {
+    return points;
+  }
+
+  return [
+    {
+      key: anchorPoint.key,
+      label: anchorPoint.label,
+      prediction: anchorPoint.searches,
+      time: anchorPoint.time,
+    },
+    ...points.filter((point) => point.key !== anchorPoint.key),
+  ];
 }
 
 function BarList({
@@ -796,6 +960,8 @@ export function SelectionSummary({
   isExpanded,
   language,
   onExpandedChange,
+  onPredictionWindowChange,
+  predictionData,
   selection,
 }: {
   filters: DemandFilters;
@@ -803,6 +969,8 @@ export function SelectionSummary({
   isExpanded: boolean;
   language: Language;
   onExpandedChange: (isExpanded: boolean) => void;
+  onPredictionWindowChange: (window: PredictionWindow) => void;
+  predictionData: RecursivePredictionPoint[];
   selection: CoordinateMatch | null;
 }) {
   const t = translations[language];
@@ -860,6 +1028,16 @@ export function SelectionSummary({
     () => aggregateTimeSeries(timeSeries, language, timeWindow, timeOffset),
     [language, timeOffset, timeSeries, timeWindow],
   );
+  const recursivePredictionChart = useMemo(
+    () =>
+      aggregateRecursivePredictionSeries(
+        predictionData,
+        language,
+        timeWindow,
+        timeChart.predictionAnchorPoint,
+      ),
+    [language, predictionData, timeChart.predictionAnchorPoint, timeWindow],
+  );
   const hasInsufficientProvinceData = Boolean(provinceDemand && !provinceDemand.summary);
   const title = provinceDemand?.name ?? t.turkeyOverview;
   const subtitle = provinceDemand
@@ -876,6 +1054,28 @@ export function SelectionSummary({
   useEffect(() => {
     setTimeOffset(0);
   }, [activeData?.updated_at, selection?.provinceNumber, timeWindow]);
+
+  useEffect(() => {
+    if (
+      !selection?.provinceNumber ||
+      !timeChart.predictionStartTimestamp ||
+      timeChart.predictionHours <= 0
+    ) {
+      onPredictionWindowChange(null);
+      return;
+    }
+
+    onPredictionWindowChange({
+      hours: timeChart.predictionHours,
+      startTimestamp: timeChart.predictionStartTimestamp,
+    });
+  }, [
+    onPredictionWindowChange,
+    selection?.provinceNumber,
+    timeChart.predictionAnchorPoint,
+    timeChart.predictionHours,
+    timeChart.predictionStartTimestamp,
+  ]);
 
   return (
     <section
@@ -962,6 +1162,7 @@ export function SelectionSummary({
               data={timeChart.points}
               isExpanded={isExpanded}
               language={language}
+              predictionData={provinceDemand ? recursivePredictionChart : []}
             />
           </div>
 
