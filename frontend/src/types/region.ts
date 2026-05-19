@@ -17,6 +17,17 @@ export type RegionValuesResponse = {
   values: Record<string, RegionValue>;
 };
 
+export type RequestHeatPoint = {
+  latitude: number;
+  longitude: number;
+  searches: number;
+};
+
+export type RequestPointsResponse = {
+  updated_at: string;
+  points: RequestHeatPoint[];
+};
+
 export type DemandMetricKey =
   | "searches"
   | "avg_rating";

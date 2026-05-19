@@ -3,6 +3,7 @@ import type {
   DemandOverviewResponse,
   DemandMetricKey,
   ProvinceDemandResponse,
+  RequestPointsResponse,
   RegionValuesResponse,
   TurkeyProvinceProperties,
 } from "../types/region";
@@ -126,6 +127,12 @@ export function fetchRegionValues(
 export function fetchDemandOverview(filters: DemandFilters) {
   return getJson<DemandOverviewResponse>(
     `/api/demand/overview${demandQuery(filters)}`,
+  );
+}
+
+export function fetchRequestPoints(filters: DemandFilters) {
+  return getJson<RequestPointsResponse>(
+    `/api/demand/request-points${demandQuery(filters)}`,
   );
 }
 
