@@ -395,65 +395,12 @@ function TimeWindowSlider({
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
   const durationHours = windowOption.durationHours ?? 24 * 30;
   const handleWidthPercent = clamp((durationHours / (24 * 30)) * 100, 10, 100);
-  const leftPercent = max > 0 ? (value / max) * (100 - handleWidthPercent) : 0;
-
-  function updateFromPointer(clientX: number, target: HTMLDivElement) {
-    const bounds = target.getBoundingClientRect();
-    const ratio = clamp((clientX - bounds.left) / bounds.width, 0, 1);
-    onChange(Math.round(ratio * max));
-  }
-
-  function releasePointer(target: HTMLDivElement, pointerId: number) {
-    if (target.hasPointerCapture(pointerId)) {
-      target.releasePointerCapture(pointerId);
-    }
-  }
+  const safeValue = clamp(value, 0, max);
+  const leftPercent = max > 0 ? (safeValue / max) * (100 - handleWidthPercent) : 0;
 
   return (
     <div className="time-window-control">
-      <div
-        className="time-window-track"
-        onPointerDown={(event) => {
-          const target = event.currentTarget;
-          if (!target.hasPointerCapture(event.pointerId)) {
-            target.setPointerCapture(event.pointerId);
-          }
-          updateFromPointer(event.clientX, target);
-        }}
-        onPointerMove={(event) => {
-          if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-            return;
-          }
-
-          updateFromPointer(event.clientX, event.currentTarget);
-        }}
-        onPointerUp={(event) => {
-          releasePointer(event.currentTarget, event.pointerId);
-        }}
-        onPointerCancel={(event) => {
-          releasePointer(event.currentTarget, event.pointerId);
-        }}
-        onLostPointerCapture={(event) => {
-          releasePointer(event.currentTarget, event.pointerId);
-        }}
-        role="slider"
-        aria-label={t.window}
-        aria-valuemax={max}
-        aria-valuemin={0}
-        aria-valuenow={value}
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowLeft") {
-            event.preventDefault();
-            onChange(clamp(value - 1, 0, max));
-          }
-
-          if (event.key === "ArrowRight") {
-            event.preventDefault();
-            onChange(clamp(value + 1, 0, max));
-          }
-        }}
-      >
+      <label className="time-window-track">
         <div className="time-window-line" />
         <div
           className="time-window-segment"
@@ -462,7 +409,16 @@ function TimeWindowSlider({
             width: `${handleWidthPercent}%`,
           }}
         />
-      </div>
+        <input
+          aria-label={t.window}
+          max={max}
+          min={0}
+          onChange={(event) => onChange(Number(event.currentTarget.value))}
+          step={1}
+          type="range"
+          value={safeValue}
+        />
+      </label>
       <div className="time-window-labels">
         <span>{t.start}</span>
         <span>{t.end}</span>
@@ -990,7 +946,7 @@ export function SelectionSummary({
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
       });
-  }, [filters]);
+  }, [filters, t.failedToLoad]);
 
   useEffect(() => {
     if (!selection?.provinceNumber) {
@@ -1007,7 +963,7 @@ export function SelectionSummary({
         setProvinceDemand(null);
         setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
       });
-  }, [filters, selection?.provinceNumber]);
+  }, [filters, selection?.provinceNumber, t.failedToLoad]);
 
   const activeData = provinceDemand ?? overview;
   const summary = getSummary(activeData);

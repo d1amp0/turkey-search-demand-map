@@ -310,6 +310,25 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .map-mode-toggle {
+    @apply absolute bottom-3 left-3 z-[710] grid gap-1 rounded-md border p-[3px];
+    background: var(--toggle-background);
+    border-color: var(--border);
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+  }
+
+  .map-mode-toggle button {
+    @apply min-h-8 border-0 px-2.5 text-xs font-semibold;
+    background: transparent;
+    color: var(--muted-text);
+  }
+
+  .map-mode-toggle button.active {
+    background: var(--toggle-button-active);
+    box-shadow: var(--toggle-button-active-shadow);
+    color: var(--text);
+  }
+
   .province-map-search label {
     @apply grid gap-1 text-xs leading-tight;
     color: var(--muted-text);
@@ -406,6 +425,11 @@
 
   .leaflet-map.pick-enabled {
     cursor: crosshair;
+  }
+
+  .request-heatmap-canvas {
+    @apply absolute top-0 left-0 h-full w-full;
+    pointer-events: none;
   }
 
   .region-tooltip {
@@ -667,9 +691,31 @@
     border-color: var(--border);
   }
 
-  .time-window-track:focus {
+  .time-window-track:focus-within {
     outline: 2px solid color-mix(in srgb, var(--accent) 46%, transparent);
     outline-offset: 2px;
+  }
+
+  .time-window-track input {
+    @apply absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0;
+    appearance: none;
+  }
+
+  .time-window-track input::-webkit-slider-thumb {
+    @apply h-10 w-8 cursor-grab;
+    appearance: none;
+  }
+
+  .time-window-track input:active::-webkit-slider-thumb {
+    cursor: grabbing;
+  }
+
+  .time-window-track input::-moz-range-thumb {
+    @apply h-10 w-8 cursor-grab border-0;
+  }
+
+  .time-window-track input:active::-moz-range-thumb {
+    cursor: grabbing;
   }
 
   .time-window-line {
@@ -678,7 +724,7 @@
   }
 
   .time-window-segment {
-    @apply absolute top-1/2 h-6 -translate-y-1/2 rounded-md border shadow-[0_5px_14px_rgba(15,23,42,0.18)];
+    @apply pointer-events-none absolute top-1/2 h-6 -translate-y-1/2 rounded-md border shadow-[0_5px_14px_rgba(15,23,42,0.18)];
     background: color-mix(in srgb, var(--accent) 72%, var(--card-background));
     border-color: color-mix(in srgb, var(--accent) 88%, var(--border));
   }
@@ -1098,6 +1144,11 @@
   .province-map-search {
     @apply top-[116px] right-2.5 left-2.5 w-auto;
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .map-mode-toggle {
+    @apply right-2.5 bottom-2.5 left-2.5;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .coordinate-search label {

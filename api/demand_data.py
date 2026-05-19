@@ -7,7 +7,7 @@ from typing import Any, Literal, TypedDict
 import pandas as pd
 
 from api.region_data import load_city_geojson
-from api.settings import PROVINCES_DIR
+from api.settings import FULL_DEMAND_CSV_PATHS, PROVINCES_DIR
 
 
 MetricName = Literal["searches", "avg_rating"]
@@ -64,6 +64,49 @@ def _province_names() -> dict[int, str]:
 @lru_cache(maxsize=1)
 def get_demand_dataframe() -> pd.DataFrame:
     """Load real province CSV files and normalize them for analytics endpoints."""
+    full_demand_csv_path = next(
+        (path for path in FULL_DEMAND_CSV_PATHS if path.exists()),
+        None,
+    )
+
+    if full_demand_csv_path:
+        demand = pd.read_csv(
+            full_demand_csv_path,
+            usecols=[
+                "latitude",
+                "longitude",
+                "org_name",
+                "time",
+                "category",
+                "org_rating",
+                "name",
+                "number",
+            ],
+            encoding="utf-8-sig",
+        )
+        demand = demand.rename(
+            columns={
+                "name": "province_name",
+                "number": "province_number",
+            },
+        )
+        demand["latitude"] = pd.to_numeric(demand["latitude"], errors="coerce")
+        demand["longitude"] = pd.to_numeric(demand["longitude"], errors="coerce")
+    else:
+        demand = _load_province_demand_dataframe()
+
+    demand["timestamp"] = pd.to_datetime(demand["time"], errors="coerce")
+    demand["date"] = demand["timestamp"].dt.date.astype("string")
+    demand["weekday"] = demand["timestamp"].dt.strftime("%a")
+    demand["hour"] = demand["timestamp"].dt.hour
+    demand["category"] = demand["category"].fillna("Unknown")
+    demand["org_name"] = demand["org_name"].fillna("Unknown")
+    demand["org_rating"] = pd.to_numeric(demand["org_rating"], errors="coerce")
+
+    return demand[demand["timestamp"].notna()].copy()
+
+
+def _load_province_demand_dataframe() -> pd.DataFrame:
     province_names = _province_names()
     frames: list[pd.DataFrame] = []
 
@@ -87,6 +130,8 @@ def get_demand_dataframe() -> pd.DataFrame:
                 "org_rating",
                 "province_number",
                 "province_name",
+                "latitude",
+                "longitude",
                 "timestamp",
                 "date",
                 "weekday",
@@ -95,15 +140,10 @@ def get_demand_dataframe() -> pd.DataFrame:
         )
 
     demand = pd.concat(frames, ignore_index=True)
-    demand["timestamp"] = pd.to_datetime(demand["time"], errors="coerce")
-    demand["date"] = demand["timestamp"].dt.date.astype("string")
-    demand["weekday"] = demand["timestamp"].dt.strftime("%a")
-    demand["hour"] = demand["timestamp"].dt.hour
-    demand["category"] = demand["category"].fillna("Unknown")
-    demand["org_name"] = demand["org_name"].fillna("Unknown")
-    demand["org_rating"] = pd.to_numeric(demand["org_rating"], errors="coerce")
+    demand["latitude"] = pd.NA
+    demand["longitude"] = pd.NA
 
-    return demand[demand["timestamp"].notna()].copy()
+    return demand
 
 
 def _summary_from_frame(frame: pd.DataFrame) -> dict[str, float | int]:
@@ -193,6 +233,31 @@ def get_region_values(
         "metric": metric,
         "metric_catalog": get_metric_catalog()["metrics"],
         "values": values,
+    }
+
+
+def get_request_points(filters: DemandFilters | None = None) -> dict[str, Any]:
+    frame = apply_demand_filters(get_demand_dataframe(), filters)
+    point_frame = frame.dropna(subset=["latitude", "longitude"])
+
+    if point_frame.empty:
+        points: list[dict[str, Any]] = []
+    else:
+        points = (
+            point_frame.groupby(
+                ["latitude", "longitude"],
+                as_index=False,
+                dropna=True,
+            )
+            .size()
+            .rename(columns={"size": "searches"})
+            .sort_values("searches", ascending=False)
+            .to_dict("records")
+        )
+
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "points": points,
     }
 
 

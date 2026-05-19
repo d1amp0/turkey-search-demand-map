@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import L from "leaflet";
 import type { Layer, LeafletMouseEvent, Path, PathOptions } from "leaflet";
@@ -10,7 +10,11 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { fetchRegionValues, fetchTurkeyGeoJson } from "../api/client";
+import {
+  fetchRegionValues,
+  fetchRequestPoints,
+  fetchTurkeyGeoJson,
+} from "../api/client";
 import { translations } from "../i18n";
 import type { DemandFilters } from "../types/filters";
 import type { Language } from "../i18n";
@@ -18,6 +22,8 @@ import { heatmapPalettes } from "../types/palette";
 import type { HeatmapPalette } from "../types/palette";
 import type {
   DemandMetricKey,
+  RequestHeatPoint,
+  RequestPointsResponse,
   RegionValuesResponse,
   TurkeyProvinceProperties,
 } from "../types/region";
@@ -25,6 +31,7 @@ import type { CoordinateMatch } from "../types/selection";
 
 type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 type Theme = "light" | "dark";
+type MapHeatMode = "regions" | "points";
 type ProvinceSuggestion = {
   distance: number;
   name: string;
@@ -47,6 +54,10 @@ const themePathColors: Record<Theme, { border: string; emptyFill: string }> = {
     emptyFill: "#475569",
   },
 };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 function baseStyle(theme: Theme): PathOptions {
   return {
@@ -71,6 +82,16 @@ function selectedStyle(theme: Theme): PathOptions {
     color: theme === "dark" ? "#f8fafc" : "#111827",
     fillOpacity: 1,
     weight: 3,
+  };
+}
+
+function outlineStyle(theme: Theme): PathOptions {
+  return {
+    color: theme === "dark" ? "#64748b" : "#94a3b8",
+    fillColor: "transparent",
+    fillOpacity: 0,
+    opacity: 0.18,
+    weight: 0.8,
   };
 }
 
@@ -349,6 +370,211 @@ function CoordinatePicker({
   return null;
 }
 
+function heatmapColorRamp(intensity: number) {
+  const low = { b: 255, g: 255, r: 255 };
+  const high = { b: 92, g: 48, r: 8 };
+  const ratio = Math.pow(clamp(intensity, 0, 1), 1.12);
+
+  return {
+    b: Math.round(low.b + (high.b - low.b) * ratio),
+    g: Math.round(low.g + (high.g - low.g) * ratio),
+    r: Math.round(low.r + (high.r - low.r) * ratio),
+  };
+}
+
+function drawGeometryMask(
+  context: CanvasRenderingContext2D,
+  geometry: Geometry,
+  map: L.Map,
+) {
+  const drawRing = (ring: number[][]) => {
+    ring.forEach(([longitude, latitude], index) => {
+      const point = map.latLngToContainerPoint([latitude, longitude]);
+
+      if (index === 0) {
+        context.moveTo(point.x, point.y);
+        return;
+      }
+
+      context.lineTo(point.x, point.y);
+    });
+    context.closePath();
+  };
+
+  if (geometry.type === "Polygon") {
+    geometry.coordinates.forEach(drawRing);
+    return;
+  }
+
+  if (geometry.type === "MultiPolygon") {
+    geometry.coordinates.forEach((polygon) => {
+      polygon.forEach(drawRing);
+    });
+  }
+}
+
+function RequestHeatmapLayer({
+  geoJson,
+  points,
+}: {
+  geoJson: TurkeyGeoJson;
+  points: RequestHeatPoint[];
+}) {
+  const map = useMap();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const pane = map.getPane("heat-pane") ?? map.getPanes().overlayPane;
+    const canvas = L.DomUtil.create("canvas", "request-heatmap-canvas");
+
+    canvasRef.current = canvas;
+    pane.appendChild(canvas);
+
+    return () => {
+      canvas.remove();
+      canvasRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return undefined;
+    }
+
+    let frame = 0;
+    const draw = () => {
+      const size = map.getSize();
+      const pixelRatio = window.devicePixelRatio || 1;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      canvas.style.width = `${size.x}px`;
+      canvas.style.height = `${size.y}px`;
+      canvas.width = Math.max(1, Math.round(size.x * pixelRatio));
+      canvas.height = Math.max(1, Math.round(size.y * pixelRatio));
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(0, 0, size.x, size.y);
+
+      const maskCanvas = document.createElement("canvas");
+      const maskContext = maskCanvas.getContext("2d", {
+        willReadFrequently: true,
+      });
+
+      if (!maskContext) {
+        return;
+      }
+
+      const densityCanvas = document.createElement("canvas");
+      const densityContext = densityCanvas.getContext("2d", {
+        willReadFrequently: true,
+      });
+
+      if (!densityContext) {
+        return;
+      }
+
+      maskCanvas.width = Math.max(1, size.x);
+      maskCanvas.height = Math.max(1, size.y);
+      densityCanvas.width = Math.max(1, size.x);
+      densityCanvas.height = Math.max(1, size.y);
+      maskContext.clearRect(0, 0, size.x, size.y);
+      maskContext.beginPath();
+      geoJson.features.forEach((feature) => {
+        drawGeometryMask(maskContext, feature.geometry, map);
+      });
+      maskContext.fillStyle = "#000000";
+      maskContext.fill("evenodd");
+
+      const maxSearches = Math.max(...points.map((point) => point.searches), 1);
+      const baseRadius = Math.max(22, Math.min(48, size.x / 30));
+
+      densityContext.clearRect(0, 0, size.x, size.y);
+      densityContext.globalCompositeOperation = "lighter";
+
+      points.forEach((point) => {
+        const containerPoint = map.latLngToContainerPoint([
+          point.latitude,
+          point.longitude,
+        ]);
+        const ratio = Math.pow(point.searches / maxSearches, 2);
+        const radius = baseRadius + ratio * 34;
+        console.log(maxSearches);
+
+        if (
+          containerPoint.x < -radius ||
+          containerPoint.y < -radius ||
+          containerPoint.x > size.x + radius ||
+          containerPoint.y > size.y + radius
+        ) {
+          return;
+        }
+
+        const gradient = densityContext.createRadialGradient(
+          containerPoint.x,
+          containerPoint.y,
+          0,
+          containerPoint.x,
+          containerPoint.y,
+          radius,
+        );
+        const alpha = 0.04 + ratio * 0.2;
+
+        gradient.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
+        gradient.addColorStop(0.5, `rgba(0, 0, 0, ${alpha * 0.46})`);
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+        densityContext.fillStyle = gradient;
+        densityContext.beginPath();
+        densityContext.arc(containerPoint.x, containerPoint.y, 5, 0, Math.PI * 2);
+        densityContext.fill();
+      });
+
+      const image = densityContext.getImageData(0, 0, size.x, size.y);
+      const data = image.data;
+      const mask = maskContext.getImageData(0, 0, size.x, size.y).data;
+
+      for (let index = 0; index < data.length; index += 4) {
+        if (mask[index + 3] === 0) {
+          data[index + 3] = 0;
+          continue;
+        }
+
+        const density = data[index + 3] / 255;
+        const intensity = Math.min(1, Math.pow(density * 0.9, 1.18));
+        const rampColor = heatmapColorRamp(intensity);
+
+        data[index] = rampColor.r;
+        data[index + 1] = rampColor.g;
+        data[index + 2] = rampColor.b;
+        data[index + 3] = 255;
+      }
+
+      densityContext.globalCompositeOperation = "source-over";
+      densityContext.putImageData(image, 0, 0);
+      context.imageSmoothingEnabled = true;
+      context.drawImage(densityCanvas, 0, 0, size.x, size.y);
+    };
+    const scheduleDraw = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(draw);
+    };
+
+    scheduleDraw();
+    map.on("move zoom resize moveend zoomend", scheduleDraw);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off("move zoom resize moveend zoomend", scheduleDraw);
+    };
+  }, [geoJson, map, points]);
+
+  return null;
+}
+
 export function TurkeyMap({
   filters,
   heatmapPalette,
@@ -371,6 +597,8 @@ export function TurkeyMap({
   const t = translations[language];
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
   const [regionData, setRegionData] = useState<RegionValuesResponse | null>(null);
+  const [requestPointsData, setRequestPointsData] =
+    useState<RequestPointsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [latitudeInput, setLatitudeInput] = useState("39");
   const [longitudeInput, setLongitudeInput] = useState("35");
@@ -388,6 +616,7 @@ export function TurkeyMap({
     null,
   );
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [mapHeatMode, setMapHeatMode] = useState<MapHeatMode>("regions");
   const activeMetric = filters.metric;
   const activeMarkerColors = markerColors(heatmapPalette, theme);
 
@@ -459,17 +688,21 @@ export function TurkeyMap({
     };
   }, [regionData]);
 
+  const requestPoints = requestPointsData?.points ?? [];
+
   const loadData = useCallback(async () => {
     setError(null);
 
     try {
-      const [nextGeoJson, nextRegionData] = await Promise.all([
+      const [nextGeoJson, nextRegionData, nextRequestPointsData] = await Promise.all([
         fetchTurkeyGeoJson(),
         fetchRegionValues(filters, activeMetric),
+        fetchRequestPoints(filters),
       ]);
 
       setGeoJson(nextGeoJson);
       setRegionData(nextRegionData);
+      setRequestPointsData(nextRequestPointsData);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t.failedToLoadMap);
     }
@@ -533,6 +766,51 @@ export function TurkeyMap({
     [onSelectionChange],
   );
 
+  const updateCoordinateMatch = useCallback(
+    (latitude: number, longitude: number) => {
+      const matchingFeature = geoJson?.features.find((feature) =>
+        featureContainsPoint(feature, longitude, latitude),
+      );
+
+      if (!matchingFeature) {
+        setCoordinateError(t.coordinatesOutsideTurkey);
+        setMarkerPosition(null);
+        setSelectedProvinceNumber(null);
+        setCoordinateMatch({
+          latitude,
+          longitude,
+          regionName: null,
+          provinceNumber: null,
+        });
+        onSelectionChange(null);
+        return;
+      }
+
+      const nextSelection = {
+        latitude,
+        longitude,
+        regionName: matchingFeature.properties.name,
+        provinceNumber: matchingFeature.properties.number,
+      };
+
+      setCoordinateError(null);
+      setMarkerPosition({ latitude, longitude });
+      setSelectedProvinceNumber(matchingFeature.properties.number);
+      setCoordinateMatch(nextSelection);
+      onSelectionChange(nextSelection);
+    },
+    [geoJson, onSelectionChange, t.coordinatesOutsideTurkey],
+  );
+
+  const pickLocationOnMap = useCallback(
+    (latitude: number, longitude: number) => {
+      setLatitudeInput(latitude.toFixed(6));
+      setLongitudeInput(longitude.toFixed(6));
+      updateCoordinateMatch(latitude, longitude);
+    },
+    [updateCoordinateMatch],
+  );
+
   const styleRegion = useCallback(
     (feature?: Feature<Geometry, TurkeyProvinceProperties>) => {
       const provinceNumber = feature?.properties?.number;
@@ -542,6 +820,13 @@ export function TurkeyMap({
           : regionData?.values[String(provinceNumber)]?.value;
       const displayValue =
         activeMetric === "avg_rating" && value === 0 ? undefined : value;
+
+      if (mapHeatMode === "points") {
+        return {
+          ...outlineStyle(theme),
+          ...(provinceNumber === selectedProvinceNumber ? selectedStyle(theme) : {}),
+        };
+      }
 
       return {
         ...baseStyle(theme),
@@ -558,6 +843,7 @@ export function TurkeyMap({
     [
       activeMetric,
       heatmapPalette,
+      mapHeatMode,
       regionData,
       selectedProvinceNumber,
       theme,
@@ -596,7 +882,9 @@ export function TurkeyMap({
             (layer as Path).setStyle(
               feature.properties.number === selectedProvinceNumber
                 ? selectedStyle(theme)
-                : highlightStyle(theme),
+                : mapHeatMode === "points"
+                  ? outlineStyle(theme)
+                  : highlightStyle(theme),
             );
           }
         },
@@ -622,10 +910,12 @@ export function TurkeyMap({
       activeMetric,
       regionData,
       isMapPickEnabled,
+      mapHeatMode,
       pickLocationOnMap,
       selectProvince,
       selectedProvinceNumber,
       styleRegion,
+      t.province,
       theme,
       language,
     ],
@@ -636,42 +926,6 @@ export function TurkeyMap({
     : t.loadingData;
   const hasCoordinateInputs = latitudeInput.trim() !== "" && longitudeInput.trim() !== "";
   const hasProvinceSuggestion = provinceSuggestions.length > 0;
-
-  const updateCoordinateMatch = useCallback(
-    (latitude: number, longitude: number) => {
-      const matchingFeature = geoJson?.features.find((feature) =>
-        featureContainsPoint(feature, longitude, latitude),
-      );
-
-      if (!matchingFeature) {
-        setCoordinateError(t.coordinatesOutsideTurkey);
-        setMarkerPosition(null);
-        setSelectedProvinceNumber(null);
-        setCoordinateMatch({
-          latitude,
-          longitude,
-          regionName: null,
-          provinceNumber: null,
-        });
-        onSelectionChange(null);
-        return;
-      }
-
-      const nextSelection = {
-        latitude,
-        longitude,
-        regionName: matchingFeature.properties.name,
-        provinceNumber: matchingFeature.properties.number,
-      };
-
-      setCoordinateError(null);
-      setMarkerPosition({ latitude, longitude });
-      setSelectedProvinceNumber(matchingFeature.properties.number);
-      setCoordinateMatch(nextSelection);
-      onSelectionChange(nextSelection);
-    },
-    [geoJson, onSelectionChange, t.coordinatesOutsideTurkey],
-  );
 
   function findLocationByCoordinates() {
     const latitude = Number(latitudeInput.replace(",", "."));
@@ -692,12 +946,6 @@ export function TurkeyMap({
       return;
     }
 
-    updateCoordinateMatch(latitude, longitude);
-  }
-
-  function pickLocationOnMap(latitude: number, longitude: number) {
-    setLatitudeInput(latitude.toFixed(6));
-    setLongitudeInput(longitude.toFixed(6));
     updateCoordinateMatch(latitude, longitude);
   }
 
@@ -753,6 +1001,22 @@ export function TurkeyMap({
       </div>
 
       <div className="map-canvas">
+        <div className="map-mode-toggle" aria-label={t.mapView}>
+          <button
+            className={mapHeatMode === "regions" ? "active" : ""}
+            type="button"
+            onClick={() => setMapHeatMode("regions")}
+          >
+            {t.regionsHeatmap}
+          </button>
+          <button
+            className={mapHeatMode === "points" ? "active" : ""}
+            type="button"
+            onClick={() => setMapHeatMode("points")}
+          >
+            {t.requestHeatmap}
+          </button>
+        </div>
         <form
           className="province-map-search"
           onSubmit={(event) => {
@@ -887,11 +1151,16 @@ export function TurkeyMap({
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}
               />
+            ) : null}
+          </Pane>
+          <Pane name="heat-pane" style={{ zIndex: 350, pointerEvents: "none" }}>
+            {mapHeatMode === "points" && geoJson ? (
+              <RequestHeatmapLayer geoJson={geoJson} points={requestPoints} />
             ) : null}
           </Pane>
           <Pane name="marker-pane" style={{ zIndex: 450 }}>

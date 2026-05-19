@@ -10,6 +10,7 @@ from api.demand_data import get_metric_catalog
 from api.demand_data import get_category_catalog
 from api.demand_data import get_overview
 from api.demand_data import get_province_detail
+from api.demand_data import get_request_points
 from api.demand_data import get_region_values
 from api.demand_data import DemandFilters
 from api.demand_data import MetricName
@@ -123,6 +124,24 @@ def demand_overview(
         "rating": rating,
     }
     return get_overview(metric, filters)
+
+
+@app.get("/api/demand/request-points")
+def demand_request_points(
+    hours: str | None = None,
+    weekdays: str | None = None,
+    provinces: str | None = None,
+    categories: str | None = None,
+    rating: str | None = None,
+) -> dict:
+    filters: DemandFilters = {
+        "hours": hours,
+        "weekdays": weekdays,
+        "provinces": provinces,
+        "categories": categories,
+        "rating": rating,
+    }
+    return get_request_points(filters)
 
 
 @app.get("/api/demand/provinces/{province_number}")
