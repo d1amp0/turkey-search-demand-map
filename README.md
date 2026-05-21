@@ -68,7 +68,30 @@ Input logs are **search-system request logs** (JSONL). Use the CLI to slim recor
 python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json
 ```
 
-By default the result is written to `data/df.csv`. See `python cli/run_map.py --help` for options and required JSONL fields.
+By default the result is written to `data/df.csv`. Query cleanup is **skipped** unless you opt in (see below). See `python cli/run_map.py --help` for required JSONL fields.
+
+### Optional query cleanup
+
+Noisy high-volume prompts (often from other systems) are not removed by default. Use either or both flags:
+
+| Flag | Effect |
+|------|--------|
+| `--exclude-queries PATH` | Drop rows whose `query` exactly matches a line in `PATH` (one query per line; `#` comments and blank lines ignored). |
+| `--drop-min-count N` | Drop every row whose `query` appears **at least N times** in the dataset after the spatial join. |
+
+```bash
+python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json \
+  --exclude-queries data/bad_queries.txt
+```
+
+Example — drop any query that occurs 500+ times:
+
+```bash
+python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json \
+  --drop-min-count 500
+```
+
+Both flags can be combined; exclusions run first, then the frequency threshold.
 
 Further splitting, categorization, and model training live under `ds/` (Jupyter notebooks).
 

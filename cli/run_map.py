@@ -185,6 +185,68 @@ def filter_by_map(df: pd.DataFrame, geojson_path: Path) -> pd.DataFrame:
     return df_clean.drop(columns=list(REQUIRED_AFTER_JOIN_DROP))
 
 
+def load_exclude_queries(path: Path) -> set[str]:
+    if not path.is_file():
+        _die(f"Exclude-queries file not found: {path}")
+
+    queries: set[str] = set()
+    with path.open("r", encoding="utf-8") as handle:
+        for line_no, line in enumerate(handle, start=1):
+            text = line.strip()
+            if not text or text.startswith("#"):
+                continue
+            queries.add(text)
+
+    if not queries:
+        _die(f"Exclude-queries file has no query lines: {path}")
+
+    return queries
+
+
+def filter_queries(
+    df: pd.DataFrame,
+    *,
+    exclude_queries_path: Path | None,
+    drop_min_count: int | None,
+) -> pd.DataFrame:
+    """Optionally drop rows by exact query match or by query frequency."""
+    if exclude_queries_path is None and drop_min_count is None:
+        return df
+
+    _require_df_columns(df, ("query",), "Query filter")
+    before = len(df)
+
+    if exclude_queries_path is not None:
+        excluded = load_exclude_queries(exclude_queries_path)
+        mask = ~df["query"].isin(excluded)
+        removed = before - int(mask.sum())
+        df = df.loc[mask]
+        tqdm.write(
+            f"Query filter (--exclude-queries): removed {removed} row(s) "
+            f"matching {len(excluded)} excluded query string(s)."
+        )
+        before = len(df)
+
+    if drop_min_count is not None:
+        counts = df["query"].value_counts()
+        frequent = counts[counts >= drop_min_count].index
+        if len(frequent) == 0:
+            tqdm.write(
+                f"Query filter (--drop-min-count {drop_min_count}): "
+                "no queries met the threshold."
+            )
+        else:
+            mask = ~df["query"].isin(frequent)
+            removed = before - int(mask.sum())
+            df = df.loc[mask]
+            tqdm.write(
+                f"Query filter (--drop-min-count {drop_min_count}): removed {removed} row(s) "
+                f"from {len(frequent)} query string(s) with count >= {drop_min_count}."
+            )
+
+    return df
+
+
 def parse_args() -> argparse.Namespace:
     root = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(
@@ -194,8 +256,11 @@ def parse_args() -> argparse.Namespace:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog=(
-            "Example:\n"
+            "Examples:\n"
             "  %(prog)s --logs data/batch.jsonl --geojson data/tr-cities.json\n"
+            "  %(prog)s --logs data/batch.jsonl --geojson data/tr-cities.json "
+            "--exclude-queries data/turkish_trash.txt\n"
+            "  %(prog)s --logs data/batch.jsonl --geojson data/tr-cities.json --drop-min-count 500\n"
             "\n"
             "Each non-empty line of --logs must be a JSON object with these keys (all required): "
             f"{', '.join(sorted(REQUIRED_LOG_COLUMNS))}."
@@ -219,6 +284,26 @@ def parse_args() -> argparse.Namespace:
         default=root / "data" / "df.csv",
         help="Output CSV path.",
     )
+    parser.add_argument(
+        "--drop-min-count",
+        type=int,
+        metavar="N",
+        default=None,
+        help=(
+            "Drop all rows whose query text appears at least N times in the current dataset "
+            "(removes high-frequency system prompts)."
+        ),
+    )
+    parser.add_argument(
+        "--exclude-queries",
+        type=Path,
+        metavar="PATH",
+        default=None,
+        help=(
+            "Path to a text file with one exact query string per line; matching rows are removed. "
+            "Lines starting with # and blank lines are ignored."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -232,6 +317,14 @@ def main() -> None:
         _die(f"Logs file not found: {logs_path}")
     if not geojson_path.is_file():
         _die(f"GeoJSON file not found: {geojson_path}")
+    if args.drop_min_count is not None and args.drop_min_count < 1:
+        _die("--drop-min-count must be a positive integer.")
+
+    exclude_queries_path = (
+        args.exclude_queries.expanduser().resolve()
+        if args.exclude_queries is not None
+        else None
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -263,26 +356,15 @@ def main() -> None:
         tqdm.write("Spatial join: point-in-polygon against GeoJSON…")
         df = filter_by_map(df, geojson_path)
 
-        # FIX IT: placeholder cleanup — replace with real time semantics / query filters later.
-        _require_df_columns(df, ("query", "model_response_timestamp"), "Before FIX IT cleanup")
-
-        trash1 = (
-            "Yakınımdaki, fast-food olmayan; ev yemeği veya taze pişirilmiş yemekler sunan, "
-            "uygun fiyatlı öğle yemeği mekânlarını öner."
-        )
-        trash2 = (
-            "bana bütçesi çok yüksek olmayan, otoparkı ve terası olan boğaz manzaralı bir "
-            "restoran önerir misin"
-        )
-        trash3 = (
-            "Budget-friendly lunch places near me that serve real food, not fast-food."
-        )
+        _require_df_columns(df, ("query", "model_response_timestamp"), "Before query filter")
         df["time"] = pd.to_datetime(
             df["model_response_timestamp"], unit="s", utc=True, errors="coerce"
         )
-
-        mask_trash = ~df["query"].isin([trash1, trash2, trash3])
-        df = df.loc[mask_trash]
+        df = filter_queries(
+            df,
+            exclude_queries_path=exclude_queries_path,
+            drop_min_count=args.drop_min_count,
+        )
 
         tqdm.write(f"Writing CSV ({len(df)} rows)…")
         df.to_csv(output_path, index=False, encoding="utf-8")
