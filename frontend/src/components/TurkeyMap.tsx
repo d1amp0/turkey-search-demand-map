@@ -791,7 +791,6 @@ export function TurkeyMap({
       setSelectedProvinceNumber(province.number);
       setProvinceSearch("");
       setIsProvinceSearchOpen(false);
-      onMapPickEnabledChange(false);
       onSelectionChange({
         latitude,
         longitude,
@@ -799,7 +798,7 @@ export function TurkeyMap({
         provinceNumber: province.number,
       });
     },
-    [onMapPickEnabledChange, onSelectionChange],
+    [onSelectionChange],
   );
 
   useEffect(() => {

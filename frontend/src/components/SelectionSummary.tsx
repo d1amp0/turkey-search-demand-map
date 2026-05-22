@@ -1270,65 +1270,63 @@ export function SelectionSummary({
             </div>
           </div>
 
-          {!provinceDemand ? (
-            <form
-              className="analytics-coordinate-search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                findLocationByCoordinates();
-              }}
+          <form
+            className="analytics-coordinate-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              findLocationByCoordinates();
+            }}
+          >
+            <label>
+              <span>{t.lat}</span>
+              <input
+                inputMode="decimal"
+                value={latitudeInput}
+                onChange={(event) => setLatitudeInput(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>{t.lon}</span>
+              <input
+                inputMode="decimal"
+                value={longitudeInput}
+                onChange={(event) => setLongitudeInput(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>{t.radiusKm}</span>
+              <input
+                inputMode="decimal"
+                type="text"
+                value={radiusInput}
+                onChange={(event) => setRadiusInput(event.target.value)}
+              />
+            </label>
+            <button
+              disabled={latitudeInput.trim() === "" || longitudeInput.trim() === ""}
+              type="submit"
             >
-              <label>
-                <span>{t.lat}</span>
-                <input
-                  inputMode="decimal"
-                  value={latitudeInput}
-                  onChange={(event) => setLatitudeInput(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>{t.lon}</span>
-                <input
-                  inputMode="decimal"
-                  value={longitudeInput}
-                  onChange={(event) => setLongitudeInput(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>{t.radiusKm}</span>
-                <input
-                  inputMode="decimal"
-                  type="text"
-                  value={radiusInput}
-                  onChange={(event) => setRadiusInput(event.target.value)}
-                />
-              </label>
-              <button
-                disabled={latitudeInput.trim() === "" || longitudeInput.trim() === ""}
-                type="submit"
-              >
-                {t.find}
-              </button>
-              <label className="map-pick-toggle">
-                <input
-                  checked={isMapPickEnabled}
-                  onChange={(event) => onMapPickEnabledChange(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>{t.pickOnMap}</span>
-                <em>{t.pickOnMapHelp}</em>
-              </label>
-              <p className="control-help">
-                {coordinateError ??
-                  radiusError ??
-                  (isRadiusLoading
-                    ? t.loadingRadiusSummary
-                    : radiusSummary
-                      ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
-                      : t.coordinateSearchHelp)}
-              </p>
-            </form>
-          ) : null}
+              {t.find}
+            </button>
+            <label className="map-pick-toggle">
+              <input
+                checked={isMapPickEnabled}
+                onChange={(event) => onMapPickEnabledChange(event.target.checked)}
+                type="checkbox"
+              />
+              <span>{t.pickOnMap}</span>
+              <em>{t.pickOnMapHelp}</em>
+            </label>
+            <p className="control-help">
+              {coordinateError ??
+                radiusError ??
+                (isRadiusLoading
+                  ? t.loadingRadiusSummary
+                  : radiusSummary
+                    ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
+                    : t.coordinateSearchHelp)}
+            </p>
+          </form>
 
           <dl className="summary-grid">
             <MetricTile label={t.requests} value={formatInteger(summary.searches)} />
