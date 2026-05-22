@@ -1140,9 +1140,24 @@ export function SelectionSummary({
     setRadiusInput((currentRadiusInput) =>
       Number(currentRadiusInput.replace(",", ".")) === radiusKm
         ? currentRadiusInput
-        : nextRadiusInput,
+      : nextRadiusInput,
     );
   }, [radiusKm]);
+
+  useEffect(() => {
+    const nextRadiusKm = Number(radiusInput.replace(",", "."));
+
+    if (!Number.isFinite(nextRadiusKm) || nextRadiusKm <= 0) {
+      setRadiusError(radiusInput.trim() ? t.enterValidRadius : null);
+      return;
+    }
+
+    setRadiusError(null);
+
+    if (nextRadiusKm !== radiusKm) {
+      onRadiusKmChange(nextRadiusKm);
+    }
+  }, [onRadiusKmChange, radiusInput, radiusKm, t.enterValidRadius]);
 
   useEffect(() => {
     if (selectionLatitude === null || selectionLongitude === null) {
@@ -1299,7 +1314,10 @@ export function SelectionSummary({
                 inputMode="decimal"
                 type="text"
                 value={radiusInput}
-                onChange={(event) => setRadiusInput(event.target.value)}
+                onChange={(event) => {
+                  setRadiusInput(event.target.value);
+                  setRadiusSummary(null);
+                }}
               />
             </label>
             <button
@@ -1502,14 +1520,6 @@ export function SelectionSummary({
             </>
           ) : null}
 
-          {selection &&
-          selection.latitude !== null &&
-          selection.longitude !== null ? (
-            <dl className="coordinate-grid">
-              <MetricTile label={t.latitude} value={selection.latitude.toFixed(6)} />
-              <MetricTile label={t.longitude} value={selection.longitude.toFixed(6)} />
-            </dl>
-          ) : null}
         </div>
       ) : (
         <div className="summary-empty">
