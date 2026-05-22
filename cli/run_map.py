@@ -9,6 +9,7 @@ from pathlib import Path
 from cli.constants import REQUIRED_LOG_COLUMNS
 from cli.errors import die
 from cli.pipeline import PipelineOptions, PipelinePaths, run_pipeline
+from cli.translate import TRANSLATION_MODEL
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,6 +51,14 @@ def parse_args() -> argparse.Namespace:
         help="Directory for per-province CSV files ({number}.csv).",
     )
     parser.add_argument("--translate-batch-size", type=int, default=32)
+    parser.add_argument(
+        "--translation-model",
+        default=TRANSLATION_MODEL,
+        help=(
+            "Hugging Face translation model. Hy-MT2 options include "
+            "tencent/Hy-MT2-1.8B, tencent/Hy-MT2-7B, and tencent/Hy-MT2-30B-A3B."
+        ),
+    )
     parser.add_argument(
         "--device",
         default="cpu",
@@ -104,6 +113,7 @@ def main() -> None:
             exclude_queries_path=exclude_queries_path,
             drop_min_count=args.drop_min_count,
             translate_batch_size=args.translate_batch_size,
+            translation_model=args.translation_model,
             device=args.device,
         ),
     )

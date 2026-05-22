@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from cli.errors import require_df_columns
-from cli.translate import translate_org_types
+from cli.translate import TRANSLATION_MODEL, translate_org_types
 
 # Same taxonomy as ds/ml/result.ipynb and frontend/src/i18n.ts
 CATEGORY_LIST: list[str] = [
@@ -68,6 +68,7 @@ def categorize_dataframe(
     org_type_column: str = "org_type",
     *,
     translate_batch_size: int = 32,
+    translation_model: str = TRANSLATION_MODEL,
     device: str = "cpu",
 ) -> pd.DataFrame:
     """Add org_type_en and category columns."""
@@ -80,6 +81,7 @@ def categorize_dataframe(
         unique_types,
         batch_size=translate_batch_size,
         device=device,
+        model_name=translation_model,
     )
 
     tqdm.write(f"Loading embedder {EMBEDDING_MODEL}…")

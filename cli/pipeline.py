@@ -16,6 +16,7 @@ from cli.queries import filter_queries
 from cli.slim import slim_jsonl
 from cli.spatial import filter_by_map
 from cli.split import split_by_province
+from cli.translate import TRANSLATION_MODEL
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class PipelineOptions:
     exclude_queries_path: Path | None = None
     drop_min_count: int | None = None
     translate_batch_size: int = 32
+    translation_model: str = TRANSLATION_MODEL
     device: str = "cpu"
 
 
@@ -79,6 +81,7 @@ def run_pipeline(paths: PipelinePaths, options: PipelineOptions) -> None:
         df_with_cat = categorize_dataframe(
             df,
             translate_batch_size=options.translate_batch_size,
+            translation_model=options.translation_model,
             device=options.device,
         )
 
