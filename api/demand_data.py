@@ -31,13 +31,16 @@ class DemandFilters(TypedDict, total=False):
     hours: str | None
     weekdays: str | None
     provinces: str | None
-    categories: str | None
+    categories: str | list[str] | None
     rating: str | None
 
 
-def _split_filter(value: str | None) -> list[str]:
+def _split_filter(value: str | list[str] | None) -> list[str]:
     if not value:
         return []
+
+    if isinstance(value, list):
+        return [item.strip() for item in value if item.strip()]
 
     return [item.strip() for item in value.split(",") if item.strip()]
 

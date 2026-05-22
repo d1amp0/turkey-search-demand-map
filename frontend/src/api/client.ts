@@ -102,7 +102,9 @@ function demandQuery(filters: DemandFilters) {
   }
 
   if (filters.categories.length) {
-    params.set("categories", filters.categories.join(","));
+    filters.categories.forEach((category) => {
+      params.append("categories", category);
+    });
   }
 
   if (filters.rating !== "Any rating") {

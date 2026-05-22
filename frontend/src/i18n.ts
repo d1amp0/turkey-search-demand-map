@@ -36,6 +36,7 @@ export function translateCategory(category: string, language: Language) {
 export const translations = {
   en: {
     allMappedProvinces: "All mapped provinces",
+    allCategories: "All categories",
     allTime: "All time",
     analytics: "Analytics",
     anyRating: "Any rating",
@@ -43,6 +44,7 @@ export const translations = {
     averageRating: "Average rating",
     blue: "Blue",
     categories: "Categories",
+    category: "Category",
     categoryDistribution: "Category distribution",
     checkingModel: "Checking model",
     clear: "Clear",
@@ -143,6 +145,7 @@ export const translations = {
   },
   tr: {
     allMappedProvinces: "Haritadaki tüm iller",
+    allCategories: "Tüm kategoriler",
     allTime: "Tüm zamanlar",
     analytics: "Analitik",
     anyRating: "Tüm puanlar",
@@ -150,6 +153,7 @@ export const translations = {
     averageRating: "Ortalama puan",
     blue: "Mavi",
     categories: "Kategoriler",
+    category: "Kategori",
     categoryDistribution: "Kategori dağılımı",
     checkingModel: "Model kontrol ediliyor",
     clear: "Temizle",

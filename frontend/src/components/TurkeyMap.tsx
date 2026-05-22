@@ -407,10 +407,10 @@ function CoordinatePicker({
   return null;
 }
 
-function heatmapColorRamp(intensity: number) {
-  const low = { b: 255, g: 255, r: 255 };
-  const high = { b: 92, g: 48, r: 8 };
+function heatmapColorRamp(intensity: number, palette: HeatmapPalette, theme: Theme) {
   const ratio = Math.pow(clamp(intensity, 0, 1), 1.12);
+  const low = hexToRgb(theme === "dark" ? "#0b1120" : "#ffffff");
+  const high = hexToRgb(heatmapPalettes[palette].accent);
 
   return {
     b: Math.round(low.b + (high.b - low.b) * ratio),
@@ -452,10 +452,14 @@ function drawGeometryMask(
 
 function RequestHeatmapLayer({
   geoJson,
+  palette,
   points,
+  theme,
 }: {
   geoJson: TurkeyGeoJson;
+  palette: HeatmapPalette;
   points: RequestHeatPoint[];
+  theme: Theme;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -582,7 +586,7 @@ function RequestHeatmapLayer({
 
         const density = data[index + 3] / 255;
         const intensity = Math.min(1, Math.pow(density * 0.9, 1.18));
-        const rampColor = heatmapColorRamp(intensity);
+        const rampColor = heatmapColorRamp(intensity, palette, theme);
 
         data[index] = rampColor.r;
         data[index + 1] = rampColor.g;
@@ -607,7 +611,7 @@ function RequestHeatmapLayer({
       cancelAnimationFrame(frame);
       map.off("move zoom resize moveend zoomend", scheduleDraw);
     };
-  }, [geoJson, map, points]);
+  }, [geoJson, map, palette, points, theme]);
 
   return null;
 }
@@ -1104,7 +1108,12 @@ export function TurkeyMap({
           </Pane>
           <Pane name="heat-pane" style={{ zIndex: 350, pointerEvents: "none" }}>
             {mapHeatMode === "points" && geoJson ? (
-              <RequestHeatmapLayer geoJson={geoJson} points={requestPoints} />
+              <RequestHeatmapLayer
+                geoJson={geoJson}
+                palette={heatmapPalette}
+                points={requestPoints}
+                theme={theme}
+              />
             ) : null}
           </Pane>
           <Pane name="marker-pane" style={{ zIndex: 450 }}>

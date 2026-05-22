@@ -1019,6 +1019,9 @@ export function SelectionSummary({
   const [radiusSummary, setRadiusSummary] = useState<RadiusSummaryResponse | null>(null);
   const [radiusError, setRadiusError] = useState<string | null>(null);
   const [isRadiusLoading, setIsRadiusLoading] = useState(false);
+  const [lineChartCategory, setLineChartCategory] = useState("all");
+  const [lineChartData, setLineChartData] =
+    useState<DemandOverviewResponse | ProvinceDemandResponse | null>(null);
 
   useEffect(() => {
     void fetchTurkeyGeoJson()
@@ -1047,24 +1050,38 @@ export function SelectionSummary({
       return;
     }
 
+    let isActive = true;
+
     void fetchProvinceDemand(selection.provinceNumber, filters)
       .then((nextProvinceDemand) => {
-        setProvinceDemand(nextProvinceDemand);
-        setError(null);
+        if (isActive) {
+          setProvinceDemand(nextProvinceDemand);
+          setError(null);
+        }
       })
       .catch((loadError) => {
-        setProvinceDemand(null);
-        setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
+        if (isActive) {
+          setProvinceDemand(null);
+          setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
+        }
       });
+
+    return () => {
+      isActive = false;
+    };
   }, [filters, selection?.provinceNumber, t.failedToLoad]);
 
   const activeData = provinceDemand ?? overview;
   const summary = getSummary(activeData);
-  const timeSeries = useMemo(() => activeData?.time_series ?? [], [activeData?.time_series]);
   const categoryBreakdown = activeData?.category_breakdown ?? [];
+  const lineChartActiveData = lineChartCategory === "all" ? activeData : lineChartData;
+  const timeSeries = useMemo(
+    () => lineChartActiveData?.time_series ?? [],
+    [lineChartActiveData?.time_series],
+  );
   const hourlyDistribution = activeData?.hourly_distribution ?? [];
   const topOrganizations = (activeData?.top_organizations ?? []).slice(0, 5);
-  const canShowDailyRequestChart = hasEnoughDailyRequests(activeData);
+  const canShowDailyRequestChart = hasEnoughDailyRequests(lineChartActiveData);
   const availableTimeWindowOptions = canShowDailyRequestChart
     ? timeWindowOptions
     : timeWindowOptions.filter((option) => option.key !== "day");
@@ -1105,6 +1122,50 @@ export function SelectionSummary({
   useEffect(() => {
     setTimeOffset(0);
   }, [activeData?.updated_at, selection?.provinceNumber, timeWindow]);
+
+  useEffect(() => {
+    setLineChartCategory("all");
+    setLineChartData(null);
+  }, [activeData?.updated_at, filters, selection?.provinceNumber]);
+
+  useEffect(() => {
+    if (lineChartCategory === "all") {
+      setLineChartData(null);
+      return undefined;
+    }
+
+    let isActive = true;
+    const nextFilters = {
+      ...filters,
+      categories: [lineChartCategory],
+    };
+
+    const request = selection?.provinceNumber
+      ? fetchProvinceDemand(selection.provinceNumber, nextFilters)
+      : fetchDemandOverview(nextFilters);
+
+    void request
+      .then((nextLineChartData) => {
+        if (isActive) {
+          setLineChartData(nextLineChartData);
+          setError(null);
+        }
+      })
+      .catch((loadError) => {
+        if (isActive) {
+          setLineChartData(null);
+          setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [filters, lineChartCategory, selection?.provinceNumber, t.failedToLoad]);
+
+  useEffect(() => {
+    setTimeOffset(0);
+  }, [lineChartCategory]);
 
   useEffect(() => {
     if (
@@ -1386,6 +1447,20 @@ export function SelectionSummary({
                   ))}
                 </div>
               </div>
+              <label className="chart-category-picker">
+                <span>{t.category}</span>
+                <select
+                  value={lineChartCategory}
+                  onChange={(event) => setLineChartCategory(event.target.value)}
+                >
+                  <option value="all">{t.allCategories}</option>
+                  {categoryBreakdown.map((item) => (
+                    <option key={item.category} value={item.category}>
+                      {translateCategory(item.category, language)}
+                    </option>
+                  ))}
+                </select>
+              </label>
               {!canShowDailyRequestChart ? (
                 <p className="chart-note">
                   {t.dayViewHidden}
@@ -1405,7 +1480,7 @@ export function SelectionSummary({
               data={timeChart.points}
               isExpanded={isExpanded}
               language={language}
-              predictionData={provinceDemand ? recursivePredictionChart : []}
+              predictionData={provinceDemand && lineChartCategory === "all" ? recursivePredictionChart : []}
             />
           </div>
 

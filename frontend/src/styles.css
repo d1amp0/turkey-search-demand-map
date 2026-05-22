@@ -724,9 +724,23 @@
     grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   }
 
-  .time-window-picker > span {
+  .time-window-picker > span,
+  .chart-category-picker span {
     @apply text-xs font-semibold uppercase;
     color: var(--muted-text);
+  }
+
+  .chart-category-picker {
+    @apply grid items-center gap-2;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  }
+
+  .chart-category-picker select {
+    @apply h-9 min-w-0 rounded-md border py-0 pr-7 pl-2.5 text-[13px];
+    background: var(--card-background);
+    border-color: var(--border);
+    color: var(--text);
+    font: inherit;
   }
 
   .segmented-control {

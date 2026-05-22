@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
@@ -95,7 +96,7 @@ def demand_region_values(
     hours: str | None = None,
     weekdays: str | None = None,
     provinces: str | None = None,
-    categories: str | None = None,
+    categories: list[str] | None = Query(default=None),
     rating: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
@@ -114,7 +115,7 @@ def demand_overview(
     hours: str | None = None,
     weekdays: str | None = None,
     provinces: str | None = None,
-    categories: str | None = None,
+    categories: list[str] | None = Query(default=None),
     rating: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
@@ -132,7 +133,7 @@ def demand_request_points(
     hours: str | None = None,
     weekdays: str | None = None,
     provinces: str | None = None,
-    categories: str | None = None,
+    categories: list[str] | None = Query(default=None),
     rating: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
@@ -153,7 +154,7 @@ def demand_radius_summary(
     hours: str | None = None,
     weekdays: str | None = None,
     provinces: str | None = None,
-    categories: str | None = None,
+    categories: list[str] | None = Query(default=None),
     rating: str | None = None,
 ) -> dict:
     if radius_km <= 0:
@@ -174,7 +175,7 @@ def demand_province_detail(
     province_number: int,
     hours: str | None = None,
     weekdays: str | None = None,
-    categories: str | None = None,
+    categories: list[str] | None = Query(default=None),
     rating: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
