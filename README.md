@@ -17,7 +17,7 @@ Search-system request logs are cleaned and joined to city boundaries before the 
 ```
 turkey/
 ├── api/                 # FastAPI backend (demand + ML endpoints)
-├── cli/                 # Data preparation scripts (run_map.py)
+├── cli/                 # Data pipeline (python -m cli.run_map)
 ├── data/
 │   └── tr-cities.json   # Province boundaries (GeoJSON; see note below)
 ├── ds/                  # Notebooks and offline preprocessing / ML
@@ -62,13 +62,23 @@ cd ..
 
 The UI and API will start without prepared data, but the map and analytics will be empty until you run the pipeline.
 
-Input logs are **search-system request logs** (JSONL). Use the CLI to slim records, keep points inside the map, and write a cleaned CSV:
+Input logs are **search-system request logs** (JSONL). One command runs the full pipeline:
 
 ```bash
-python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json
+python -m cli.run_map --logs path/to/logs.jsonl --geojson data/tr-cities.json
 ```
 
-By default the result is written to `data/df_with_cat.csv`. Query cleanup is **skipped** unless you opt in (see below). See `python cli/run_map.py --help` for required JSONL fields.
+Stages (in order):
+
+1. Slim JSONL — extract `org_*` from `model_response_full`
+2. Spatial join — keep points inside `tr-cities.json` (adds province `name`, `number`)
+3. Optional query cleanup (`--exclude-queries`, `--drop-min-count`)
+4. Translation + categorization — `org_type_en` and `category` on `data/df_with_cat.csv`
+5. Province split — `data/provinces/{number}.csv` with `org_name`, `time`, `category`, `org_rating`
+
+Query cleanup is **skipped** unless you opt in (see below). See `python -m cli.run_map --help` for all flags (`--device cuda`, `--provinces-dir`, etc.).
+
+**Translation model:** the pipeline uses [Helsinki-NLP/opus-mt-tr-en](https://huggingface.co/Helsinki-NLP/opus-mt-tr-en) as a **free, local example** — it is not the best Turkish→English option. Replace it in `cli/translate.py` if you need higher quality (e.g. a larger Marian/NLLB model or a paid API). Categorization uses [BAAI/bge-large-en-v1.5](https://huggingface.co/BAAI/bge-large-en-v1.5) on the translated labels.
 
 ### Optional query cleanup
 
@@ -80,20 +90,22 @@ Noisy high-volume prompts (often from other systems) are not removed by default.
 | `--drop-min-count N` | Drop every row whose `query` appears **at least N times** in the dataset after the spatial join. |
 
 ```bash
-python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json \
+python -m cli.run_map --logs path/to/logs.jsonl --geojson data/tr-cities.json \
   --exclude-queries data/bad_queries.txt
 ```
 
 Example — drop any query that occurs 500+ times:
 
 ```bash
-python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json \
+python -m cli.run_map --logs path/to/logs.jsonl --geojson data/tr-cities.json \
   --drop-min-count 500
 ```
 
 Both flags can be combined; exclusions run first, then the frequency threshold.
 
-Further splitting, categorization, and model training live under `ds/` (Jupyter notebooks).
+To re-run only categorization + split on an existing CSV: `python ds/ml/categorize_org_types.py --input data/df.csv`.
+
+Further model training and notebooks live under `ds/`.
 
 ## Running the application
 
@@ -154,8 +166,10 @@ Interactive API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) w
 
 | Path                | Purpose                                                   |
 | ------------------- | --------------------------------------------------------- |
-| `cli/run_map.py`    | Search request logs (JSONL) → slim + spatial filter → CSV |
-| `ds/preprocessing/` | Cleaning and memory-efficient JSONL parsing               |
-| `ds/splitting/`     | Split cleaned data for downstream use                     |
-| `ds/ml/`            | Model training and evaluation                             |
+| `cli/run_map.py` | CLI entry (`python -m cli.run_map`) |
+| `cli/pipeline.py` | Pipeline orchestration |
+| `cli/slim.py`, `cli/spatial.py`, `cli/queries.py` | JSONL slimming, map filter, query cleanup |
+| `cli/translate.py`, `cli/categorize.py`, `cli/split.py` | HF translation, BGE labels, province CSVs |
+| `ds/preprocessing/` | Cleaning and memory-efficient JSONL parsing |
+| `ds/ml/` | Notebooks (`result.ipynb`, training, evaluation) |
 | `ds/analysis/`      | Exploratory analysis                                      |
