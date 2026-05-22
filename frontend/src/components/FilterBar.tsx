@@ -167,7 +167,12 @@ export function FilterBar({
           aria-expanded={openMenu === "metric"}
           onClick={() => setOpenMenu(openMenu === "metric" ? null : "metric")}
         >
-          {t[metrics.find((metric) => metric.key === filters.metric)?.labelKey ?? "metric"]}
+          {filters.metric === "searches" ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter-icon"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          )}
+          <span>{t[metrics.find((metric) => metric.key === filters.metric)?.labelKey ?? "metric"]}</span>
         </button>
 
         {openMenu === "metric" ? (
@@ -200,7 +205,8 @@ export function FilterBar({
           aria-expanded={openMenu === "time"}
           onClick={() => setOpenMenu(openMenu === "time" ? null : "time")}
         >
-          {timeSummary}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          <span>{timeSummary}</span>
         </button>
 
         {openMenu === "time" ? (
@@ -262,11 +268,14 @@ export function FilterBar({
             setOpenMenu(openMenu === "organizations" ? null : "organizations")
           }
         >
-          {summaryLabel(
-            filters.categories.map((category) => translateCategory(category, language)),
-            t.organizations,
-            language,
-          )}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter-icon"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="9" y1="22" x2="9" y2="16"></line><line x1="15" y1="22" x2="15" y2="16"></line><line x1="9" y1="16" x2="15" y2="16"></line><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M12 6h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01"></path></svg>
+          <span>
+            {summaryLabel(
+              filters.categories.map((category) => translateCategory(category, language)),
+              t.organizations,
+              language,
+            )}
+          </span>
         </button>
 
         {openMenu === "organizations" ? (
@@ -303,7 +312,8 @@ export function FilterBar({
           aria-expanded={openMenu === "provinces"}
           onClick={() => setOpenMenu(openMenu === "provinces" ? null : "provinces")}
         >
-          {summaryLabel(selectedProvinceNames, t.provinces, language)}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter-icon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          <span>{summaryLabel(selectedProvinceNames, t.provinces, language)}</span>
         </button>
 
         {openMenu === "provinces" ? (
@@ -344,7 +354,8 @@ export function FilterBar({
           aria-expanded={openMenu === "rating"}
           onClick={() => setOpenMenu(openMenu === "rating" ? null : "rating")}
         >
-          {filters.rating === "Any rating" ? t.anyRating : filters.rating}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          <span>{filters.rating === "Any rating" ? t.anyRating : filters.rating}</span>
         </button>
 
         {openMenu === "rating" ? (

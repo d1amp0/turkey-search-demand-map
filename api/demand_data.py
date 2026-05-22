@@ -33,6 +33,8 @@ class DemandFilters(TypedDict, total=False):
     provinces: str | None
     categories: str | list[str] | None
     rating: str | None
+    start_time: str | None
+    end_time: str | None
 
 
 def _split_filter(value: str | list[str] | None) -> list[str]:
@@ -177,6 +179,8 @@ def apply_demand_filters(
     provinces = _split_filter(filters.get("provinces"))
     categories = _split_filter(filters.get("categories"))
     rating = filters.get("rating")
+    start_time = filters.get("start_time")
+    end_time = filters.get("end_time")
 
     if hour_ranges:
         filtered = filtered[filtered["hour"].isin(_hours_from_ranges(hour_ranges))]
@@ -193,6 +197,12 @@ def apply_demand_filters(
 
     if rating and rating != "Any rating":
         filtered = filtered[filtered["org_rating"] >= float(rating.rstrip("+"))]
+
+    if start_time:
+        filtered = filtered[filtered["timestamp"] >= pd.to_datetime(start_time)]
+
+    if end_time:
+        filtered = filtered[filtered["timestamp"] <= pd.to_datetime(end_time)]
 
     return filtered
 

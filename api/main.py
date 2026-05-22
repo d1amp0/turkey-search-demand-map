@@ -98,6 +98,8 @@ def demand_region_values(
     provinces: str | None = None,
     categories: list[str] | None = Query(default=None),
     rating: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
         "hours": hours,
@@ -105,6 +107,8 @@ def demand_region_values(
         "provinces": provinces,
         "categories": categories,
         "rating": rating,
+        "start_time": start_time,
+        "end_time": end_time,
     }
     return get_region_values(metric, filters)
 
@@ -117,6 +121,8 @@ def demand_overview(
     provinces: str | None = None,
     categories: list[str] | None = Query(default=None),
     rating: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
         "hours": hours,
@@ -124,6 +130,8 @@ def demand_overview(
         "provinces": provinces,
         "categories": categories,
         "rating": rating,
+        "start_time": start_time,
+        "end_time": end_time,
     }
     return get_overview(metric, filters)
 
@@ -135,6 +143,8 @@ def demand_request_points(
     provinces: str | None = None,
     categories: list[str] | None = Query(default=None),
     rating: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
         "hours": hours,
@@ -142,6 +152,8 @@ def demand_request_points(
         "provinces": provinces,
         "categories": categories,
         "rating": rating,
+        "start_time": start_time,
+        "end_time": end_time,
     }
     return get_request_points(filters)
 
@@ -156,6 +168,8 @@ def demand_radius_summary(
     provinces: str | None = None,
     categories: list[str] | None = Query(default=None),
     rating: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> dict:
     if radius_km <= 0:
         raise HTTPException(status_code=400, detail="Radius must be greater than zero")
@@ -166,6 +180,8 @@ def demand_radius_summary(
         "provinces": provinces,
         "categories": categories,
         "rating": rating,
+        "start_time": start_time,
+        "end_time": end_time,
     }
     return get_radius_summary(latitude, longitude, radius_km, filters)
 
@@ -177,12 +193,16 @@ def demand_province_detail(
     weekdays: str | None = None,
     categories: list[str] | None = Query(default=None),
     rating: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> dict:
     filters: DemandFilters = {
         "hours": hours,
         "weekdays": weekdays,
         "categories": categories,
         "rating": rating,
+        "start_time": start_time,
+        "end_time": end_time,
     }
     detail = get_province_detail(province_number, filters)
 

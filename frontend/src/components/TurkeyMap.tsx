@@ -939,12 +939,15 @@ export function TurkeyMap({
   return (
     <section className="map-card">
       <div className="map-toolbar">
-        <div>
-          <h1>{t.turkeyDemandMap}</h1>
-          <p>
-            {error ??
-              `${metricLabel(activeMetric, language)} · ${updatedAt}`}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-[3px] h-6 bg-[var(--accent)] rounded-full flex-shrink-0" />
+          <div>
+            <h1 className="m-0 text-base font-semibold leading-tight">{t.turkeyDemandMap}</h1>
+            <p className="mt-0.5 mb-0 text-[11px] font-medium text-[var(--muted-text)]">
+              {error ??
+                `${metricLabel(activeMetric, language)} • ${updatedAt}`}
+            </p>
+          </div>
         </div>
         <div className="map-toolbar-actions">
           <label className="palette-select">
@@ -965,8 +968,9 @@ export function TurkeyMap({
               ))}
             </select>
           </label>
-          <button className="refresh-button" type="button" onClick={refreshData}>
-            {t.reset}
+          <button className="refresh-button flex items-center justify-center gap-1.5" type="button" onClick={refreshData}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>{t.reset}</span>
           </button>
         </div>
       </div>
@@ -978,14 +982,16 @@ export function TurkeyMap({
             type="button"
             onClick={() => setMapHeatMode("regions")}
           >
-            {t.regionsHeatmap}
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+            <span>{t.regionsHeatmap}</span>
           </button>
           <button
             className={mapHeatMode === "points" ? "active" : ""}
             type="button"
             onClick={() => setMapHeatMode("points")}
           >
-            {t.requestHeatmap}
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            <span>{t.requestHeatmap}</span>
           </button>
         </div>
         <form
@@ -1001,68 +1007,75 @@ export function TurkeyMap({
             }
           }}
         >
-          <label>
-            <span>{t.province}</span>
-            <input
-              autoComplete="off"
-              placeholder={t.typeProvinceName}
-              value={provinceSearch}
-              onChange={(event) => {
-                setProvinceSearch(event.target.value);
-                setIsProvinceSearchOpen(true);
-              }}
-              onFocus={() => setIsProvinceSearchOpen(true)}
-              onKeyDown={(event) => {
-                if (!provinceSuggestions.length) {
-                  return;
-                }
+          <div className="flex flex-col gap-1 w-full relative">
+            <span className="text-[11px] font-semibold text-[var(--muted-text)] uppercase tracking-wider">{t.province}</span>
+            <div className="flex gap-2 items-center w-full">
+              <div className="relative flex-1 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 text-[var(--muted-text)] pointer-events-none"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input
+                  autoComplete="off"
+                  placeholder={t.typeProvinceName}
+                  value={provinceSearch}
+                  onChange={(event) => {
+                    setProvinceSearch(event.target.value);
+                    setIsProvinceSearchOpen(true);
+                  }}
+                  onFocus={() => setIsProvinceSearchOpen(true)}
+                  onKeyDown={(event) => {
+                    if (!provinceSuggestions.length) {
+                      return;
+                    }
 
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  setIsProvinceSearchOpen(true);
-                  setActiveSuggestionIndex((index) =>
-                    Math.min(index + 1, provinceSuggestions.length - 1),
-                  );
-                }
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setIsProvinceSearchOpen(true);
+                      setActiveSuggestionIndex((index) =>
+                        Math.min(index + 1, provinceSuggestions.length - 1),
+                      );
+                    }
 
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  setIsProvinceSearchOpen(true);
-                  setActiveSuggestionIndex((index) => Math.max(index - 1, 0));
-                }
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setIsProvinceSearchOpen(true);
+                      setActiveSuggestionIndex((index) => Math.max(index - 1, 0));
+                    }
 
-                if (event.key === "Enter" && isProvinceSearchOpen) {
-                  event.preventDefault();
-                  const activeSuggestion = provinceSuggestions[activeSuggestionIndex];
+                    if (event.key === "Enter" && isProvinceSearchOpen) {
+                      event.preventDefault();
+                      const activeSuggestion = provinceSuggestions[activeSuggestionIndex];
 
-                  if (activeSuggestion) {
-                    selectProvince(activeSuggestion);
-                  }
-                }
+                      if (activeSuggestion) {
+                        selectProvince(activeSuggestion);
+                      }
+                    }
 
-                if (event.key === "Escape") {
-                  setIsProvinceSearchOpen(false);
-                }
-              }}
-            />
-            <em>{t.provinceSearchHelp}</em>
-          </label>
-          <button disabled={!hasProvinceSuggestion} type="submit">{t.find}</button>
-          {isProvinceSearchOpen && visibleProvinceSuggestions.length ? (
-            <div className="province-suggestions">
-              {visibleProvinceSuggestions.map((province) => (
-                <button
-                  className={province.index === activeSuggestionIndex ? "active" : ""}
-                  key={province.number}
-                  type="button"
-                  onClick={() => selectProvince(province)}
-                  onMouseEnter={() => setActiveSuggestionIndex(province.index)}
-                >
-                  <span>{province.name}</span>
-                </button>
-              ))}
+                    if (event.key === "Escape") {
+                      setIsProvinceSearchOpen(false);
+                    }
+                  }}
+                />
+              </div>
+              <button disabled={!hasProvinceSuggestion} type="submit" className="province-find-btn">
+                {t.find}
+              </button>
             </div>
-          ) : null}
+            <em className="text-[10px] text-[var(--muted-text)] not-italic mt-0.5">{t.provinceSearchHelp}</em>
+            {isProvinceSearchOpen && visibleProvinceSuggestions.length ? (
+              <div className="province-suggestions">
+                {visibleProvinceSuggestions.map((province) => (
+                  <button
+                    className={province.index === activeSuggestionIndex ? "active" : ""}
+                    key={province.number}
+                    type="button"
+                    onClick={() => selectProvince(province)}
+                    onMouseEnter={() => setActiveSuggestionIndex(province.index)}
+                  >
+                    <span>{province.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </form>
         <MapContainer
           center={[39, 35]}

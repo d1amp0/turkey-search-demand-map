@@ -71,7 +71,7 @@ class PredictionResponse(BaseModel):
 class RecursivePredictionRequest(BaseModel):
     province_number: int = Field(..., ge=1, le=81)
     start_timestamp: int | str
-    hours: int = Field(default=24, ge=1, le=24 * 7)
+    hours: int = Field(default=24, ge=1, le=24 * 30)
     category: str | None = None
 
 
@@ -502,8 +502,16 @@ def predict_demand(payload: PredictionRequest) -> PredictionResponse:
             detail=f"Model prediction failed: {error}",
         ) from error
 
+    raw_pred = _prediction_to_json(prediction)
+    if isinstance(raw_pred, list):
+        rounded_prediction = [round(item) if isinstance(item, (int, float)) else item for item in raw_pred]
+    elif isinstance(raw_pred, (int, float)):
+        rounded_prediction = round(raw_pred)
+    else:
+        rounded_prediction = raw_pred
+
     return PredictionResponse(
-        prediction=_prediction_to_json(prediction),
+        prediction=rounded_prediction,
         model_path=str(get_prediction_model_path(model_kind, payload.province_number)),
         province_number=payload.province_number,
         prediction_timestamp=prediction_timestamp.isoformat(),
@@ -581,7 +589,7 @@ def predict_recursive_demand(
         points.append(
             RecursivePredictionPoint(
                 timestamp=target_hour.isoformat(),
-                prediction=prediction,
+                prediction=float(round(prediction)),
             ),
         )
 

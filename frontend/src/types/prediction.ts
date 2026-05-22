@@ -13,7 +13,7 @@ export const allowedPredictionProvinceNumbers = new Set([
   66,
 ]);
 
-export const maxPredictionHours = 24 * 7;
+export const maxPredictionHours = 24 * 30;
 
 export function canPredictProvince(provinceNumber: number | null | undefined) {
   return provinceNumber ? allowedPredictionProvinceNumbers.has(provinceNumber) : false;

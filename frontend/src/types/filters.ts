@@ -7,6 +7,8 @@ export type DemandFilters = {
   provinceNumbers: number[];
   categories: string[];
   rating: string;
+  startTime?: string;
+  endTime?: string;
 };
 
 export const emptyDemandFilters: DemandFilters = {

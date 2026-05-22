@@ -2,7 +2,7 @@
 
 @layer base {
   :root {
-    color: #111827;
+    color: #0f172a;
     font-family:
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
       "Segoe UI", sans-serif;
@@ -10,37 +10,38 @@
 
   :root,
   .app-shell[data-theme="light"] {
-    --background: #f8fafc;
-    --border: #e5e7eb;
-    --button-background: #111827;
-    --button-border: #111827;
+    --background: #f4f6f9;
+    --border: #e2e8f0;
+    --button-background: #005bf5;
+    --button-border: #005bf5;
     --button-color: #ffffff;
     --card-background: #ffffff;
     --map-background: #ffffff;
-    --muted-text: #6b7280;
-    --text: #111827;
-    --toggle-background: #f3f4f6;
+    --muted-text: #64748b;
+    --text: #0f172a;
+    --toggle-background: #f1f5f9;
     --toggle-button: transparent;
     --toggle-button-active: #ffffff;
-    --toggle-button-active-shadow: 0 1px 4px rgba(17, 24, 39, 0.18);
-    --accent: #0284c7;
+    --toggle-button-active-shadow: 0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --accent: #005bf5;
     background: var(--background);
   }
 
   .app-shell[data-theme="dark"] {
-    --background: #0f172a;
-    --border: #263244;
-    --button-background: #e5e7eb;
-    --button-border: #e5e7eb;
-    --button-color: #111827;
-    --card-background: #111827;
-    --map-background: #0b1120;
+    --background: #0b0f19;
+    --border: #1e293b;
+    --button-background: #3b82f6;
+    --button-border: #3b82f6;
+    --button-color: #ffffff;
+    --card-background: #161e2e;
+    --map-background: #111827;
     --muted-text: #94a3b8;
-    --text: #e5e7eb;
-    --toggle-background: #020617;
+    --text: #f1f5f9;
+    --toggle-background: #0f172a;
     --toggle-button: transparent;
-    --toggle-button-active: #334155;
-    --toggle-button-active-shadow: none;
+    --toggle-button-active: #1e293b;
+    --toggle-button-active-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --accent: #3b82f6;
     background: var(--background);
     color: var(--text);
   }
@@ -99,10 +100,24 @@
   }
 
   .filter-trigger {
-    @apply w-36 overflow-hidden text-ellipsis whitespace-nowrap;
+    @apply flex items-center gap-1.5 w-36 overflow-hidden text-ellipsis whitespace-nowrap;
     background: var(--toggle-background);
     border-color: var(--border);
     color: var(--text);
+    transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .filter-trigger:hover:not(.active) {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  }
+
+  .filter-trigger span {
+    @apply overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .filter-icon {
+    @apply flex-shrink-0;
+    color: var(--accent);
   }
 
   .filter-trigger.active {
@@ -217,9 +232,14 @@
   }
 
   .theme-toggle button {
-    @apply min-h-[30px] min-w-16 overflow-hidden text-ellipsis whitespace-nowrap rounded-md border-0 px-2.5;
+    @apply min-h-[30px] min-w-16 overflow-hidden text-ellipsis whitespace-nowrap rounded-md border-0 px-2.5 flex items-center justify-center gap-1.5;
     background: var(--toggle-button);
     color: var(--muted-text);
+    transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+  }
+
+  .theme-toggle button:hover:not(.active) {
+    color: var(--text);
   }
 
   .theme-toggle button.active {
@@ -338,9 +358,14 @@
   }
 
   .map-mode-toggle button {
-    @apply min-h-8 overflow-hidden text-ellipsis whitespace-nowrap border-0 px-2.5 text-xs font-semibold;
+    @apply min-h-8 overflow-hidden text-ellipsis whitespace-nowrap border-0 px-2.5 text-xs font-semibold flex items-center justify-center gap-1.5;
     background: transparent;
     color: var(--muted-text);
+    transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+  }
+
+  .map-mode-toggle button:hover:not(.active) {
+    color: var(--text);
   }
 
   .map-mode-toggle button.active {
@@ -355,11 +380,30 @@
   }
 
   .province-map-search input {
-    @apply h-9 w-full rounded-md border px-2.5;
+    @apply h-9 w-full rounded-md border pl-9 pr-2.5;
     background: var(--card-background);
     border-color: var(--border);
     color: var(--text);
     font: inherit;
+  }
+
+  .province-find-btn {
+    @apply min-h-9 rounded-lg border-0 px-5 text-sm font-semibold cursor-pointer flex-shrink-0;
+    background: var(--accent);
+    color: #ffffff;
+    transition: background 0.15s ease;
+  }
+
+  .province-find-btn:hover {
+    background: color-mix(in srgb, var(--accent) 85%, #000000);
+  }
+
+  .province-find-btn:active {
+    background: color-mix(in srgb, var(--accent) 70%, #000000);
+  }
+
+  .province-find-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
   }
 
   .province-suggestions {
@@ -570,6 +614,21 @@
 
   .predict-submit {
     @apply justify-self-start self-end;
+  }
+
+  .predict-submit-compact {
+    @apply py-1 px-3 text-xs min-h-7 rounded-md font-medium border-0 cursor-pointer transition-colors duration-150;
+    background: var(--accent);
+    color: #ffffff;
+  }
+  .predict-submit-compact:hover {
+    background: color-mix(in srgb, var(--accent) 85%, #000000);
+  }
+  .predict-submit-compact:active {
+    background: color-mix(in srgb, var(--accent) 70%, #000000);
+  }
+  .predict-submit-compact:disabled {
+    @apply opacity-60 cursor-not-allowed;
   }
 
   .analytics-coordinate-search {
@@ -1072,6 +1131,71 @@
   .pie-legend-row em {
     @apply text-xs not-italic;
     color: var(--muted-text);
+  }
+
+  /* Custom blue checkboxes for category checklist */
+  .chart-category-checklist input[type="checkbox"] {
+    appearance: none;
+    @apply relative m-0 h-4 w-4 shrink-0 rounded border cursor-pointer;
+    background: var(--card-background);
+    border-color: var(--border);
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+
+  .chart-category-checklist input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .chart-category-checklist input[type="checkbox"]:checked::after {
+    content: "";
+    @apply absolute top-[1px] left-[4px] block h-[9px] w-[5px] rotate-45;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+  }
+
+  /* Thin custom scrollbar */
+  .chart-category-checklist,
+  .organization-list-options,
+  .province-list,
+  .summary-panel {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-text) 26%, transparent) transparent;
+  }
+
+  .chart-category-checklist::-webkit-scrollbar,
+  .organization-list-options::-webkit-scrollbar,
+  .province-list::-webkit-scrollbar,
+  .summary-panel::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .chart-category-checklist::-webkit-scrollbar-track,
+  .organization-list-options::-webkit-scrollbar-track,
+  .province-list::-webkit-scrollbar-track,
+  .summary-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chart-category-checklist::-webkit-scrollbar-thumb,
+  .organization-list-options::-webkit-scrollbar-thumb,
+  .province-list::-webkit-scrollbar-thumb,
+  .summary-panel::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-text) 26%, transparent);
+    border-radius: 3px;
+  }
+
+  /* Transitions on chips and segmented controls */
+  .chip {
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+
+  .segmented-control button {
+    transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+  }
+
+  .segmented-control button:hover:not(.active) {
+    color: var(--text);
   }
 }
 

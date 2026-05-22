@@ -111,6 +111,14 @@ function demandQuery(filters: DemandFilters) {
     params.set("rating", filters.rating);
   }
 
+  if (filters.startTime) {
+    params.set("start_time", filters.startTime);
+  }
+
+  if (filters.endTime) {
+    params.set("end_time", filters.endTime);
+  }
+
   const query = params.toString();
   return query ? `?${query}` : "";
 }
