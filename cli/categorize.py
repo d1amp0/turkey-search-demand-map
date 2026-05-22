@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from cli.errors import require_df_columns
+from cli.hf import hf_token_kwargs
 from cli.translate import TRANSLATION_MODEL, translate_org_types
 
 # Same taxonomy as ds/ml/result.ipynb and frontend/src/i18n.ts
@@ -85,7 +86,7 @@ def categorize_dataframe(
     )
 
     tqdm.write(f"Loading embedder {EMBEDDING_MODEL}…")
-    embedder = SentenceTransformer(EMBEDDING_MODEL)
+    embedder = SentenceTransformer(EMBEDDING_MODEL, **hf_token_kwargs())
     en_texts = [tr_to_en[t] for t in unique_types]
     en_to_category = assign_categories(en_texts, embedder)
 

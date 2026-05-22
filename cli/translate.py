@@ -7,6 +7,7 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from cli.errors import die
+from cli.hf import hf_token_kwargs
 
 # Hy-MT2 models are instruction-following causal LMs, not seq2seq Marian models.
 TRANSLATION_MODEL = "tencent/Hy-MT2-1.8B"
@@ -25,11 +26,16 @@ def load_translator(
     device: str,
     model_name: str = TRANSLATION_MODEL,
 ) -> tuple[AutoTokenizer, AutoModelForCausalLM]:
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    token_kwargs = hf_token_kwargs()
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        **token_kwargs,
+    )
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model_kwargs = {"trust_remote_code": True}
+    model_kwargs = {"trust_remote_code": True, **token_kwargs}
     if device == "cuda":
         model_kwargs["torch_dtype"] = torch.bfloat16
     model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs).to(device)
