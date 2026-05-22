@@ -10,6 +10,7 @@ from api.demand_data import get_metric_catalog
 from api.demand_data import get_category_catalog
 from api.demand_data import get_overview
 from api.demand_data import get_province_detail
+from api.demand_data import get_radius_summary
 from api.demand_data import get_request_points
 from api.demand_data import get_region_values
 from api.demand_data import DemandFilters
@@ -142,6 +143,30 @@ def demand_request_points(
         "rating": rating,
     }
     return get_request_points(filters)
+
+
+@app.get("/api/demand/radius-summary")
+def demand_radius_summary(
+    latitude: float,
+    longitude: float,
+    radius_km: float,
+    hours: str | None = None,
+    weekdays: str | None = None,
+    provinces: str | None = None,
+    categories: str | None = None,
+    rating: str | None = None,
+) -> dict:
+    if radius_km <= 0:
+        raise HTTPException(status_code=400, detail="Radius must be greater than zero")
+
+    filters: DemandFilters = {
+        "hours": hours,
+        "weekdays": weekdays,
+        "provinces": provinces,
+        "categories": categories,
+        "rating": rating,
+    }
+    return get_radius_summary(latitude, longitude, radius_km, filters)
 
 
 @app.get("/api/demand/provinces/{province_number}")

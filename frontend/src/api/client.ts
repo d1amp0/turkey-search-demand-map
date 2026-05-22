@@ -3,6 +3,7 @@ import type {
   DemandOverviewResponse,
   DemandMetricKey,
   ProvinceDemandResponse,
+  RadiusSummaryResponse,
   RequestPointsResponse,
   RegionValuesResponse,
   TurkeyProvinceProperties,
@@ -133,6 +134,25 @@ export function fetchDemandOverview(filters: DemandFilters) {
 export function fetchRequestPoints(filters: DemandFilters) {
   return getJson<RequestPointsResponse>(
     `/api/demand/request-points${demandQuery(filters)}`,
+  );
+}
+
+export function fetchRadiusSummary(
+  filters: DemandFilters,
+  latitude: number,
+  longitude: number,
+  radiusKm: number,
+) {
+  const query = demandQuery(filters);
+  const separator = query ? "&" : "?";
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radius_km: String(radiusKm),
+  });
+
+  return getJson<RadiusSummaryResponse>(
+    `/api/demand/radius-summary${query}${separator}${params.toString()}`,
   );
 }
 

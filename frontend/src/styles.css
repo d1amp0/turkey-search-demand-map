@@ -48,11 +48,14 @@
   html,
   body,
   #root {
-    @apply m-0 h-full;
+    @apply m-0 min-h-full;
+    min-height: 680px;
+    min-width: 780px;
   }
 
   body {
-    @apply overflow-hidden;
+    @apply overflow-auto;
+    background: var(--background);
   }
 
   button {
@@ -70,8 +73,11 @@
 
 @layer components {
   .app-shell {
-    @apply grid h-full min-w-0;
+    @apply grid min-h-full min-w-0;
+    background: var(--background);
     grid-template-rows: auto minmax(0, 1fr);
+    min-height: 680px;
+    min-width: 780px;
   }
 
   .navbar {
@@ -225,10 +231,17 @@
   .workspace {
     @apply grid min-h-0 min-w-0 gap-4 p-4;
     grid-template-columns: minmax(0, 1fr) 640px;
+    grid-template-rows: minmax(260px, calc(100dvh - 88px));
+    min-width: 780px;
   }
 
   .workspace.panel-expanded {
     @apply block p-0;
+  }
+
+  .workspace.stats-only {
+    @apply block p-3;
+    min-width: 0;
   }
 
   .map-area,
@@ -237,11 +250,18 @@
     @apply min-h-0 min-w-0;
   }
 
+  .map-area {
+    @apply relative z-0 overflow-hidden;
+    contain: layout paint;
+    min-width: 0;
+  }
+
   .map-card {
-    @apply grid h-full overflow-hidden rounded-lg border;
+    @apply relative z-0 grid h-full overflow-hidden rounded-lg border;
     background: var(--card-background);
     border-color: var(--border);
     grid-template-rows: auto auto minmax(0, 1fr);
+    contain: layout paint;
   }
 
   .map-toolbar {
@@ -297,10 +317,10 @@
   }
 
   .coordinate-search {
-    @apply absolute top-3 right-3 z-[700] grid w-[min(520px,calc(100%-24px))] gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
+    @apply absolute top-3 right-3 z-[700] grid w-[min(650px,calc(100%-24px))] gap-2 rounded-lg border p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)];
     background: var(--card-background);
     border-color: var(--border);
-    grid-template-columns: 88px 88px minmax(150px, 1fr) auto;
+    grid-template-columns: 88px 88px 98px minmax(150px, 1fr) auto;
   }
 
   .province-map-search {
@@ -400,14 +420,20 @@
   }
 
   .coordinate-result {
-    @apply border-b px-3.5 py-2.5 text-[13px] leading-snug;
+    @apply flex flex-wrap items-center justify-between gap-2 border-b px-3.5 py-2.5 text-[13px] leading-snug;
     border-color: var(--border);
     color: var(--muted-text);
   }
 
+  .coordinate-result strong {
+    @apply font-semibold;
+    color: var(--text);
+  }
+
   .map-canvas {
-    @apply relative min-h-0 min-w-0 overflow-hidden;
+    @apply relative z-0 min-h-0 min-w-0 overflow-hidden;
     background: var(--map-background);
+    contain: layout paint;
   }
 
   .leaflet-map,
@@ -440,10 +466,14 @@
   }
 
   .charts-panel {
-    @apply grid w-[640px] overflow-hidden rounded-lg border transition-shadow;
+    @apply relative z-[1] grid w-[640px] overflow-hidden rounded-lg border transition-shadow;
     background: var(--card-background);
     border-color: var(--border);
     grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .workspace.stats-only .charts-panel {
+    @apply min-h-[680px] w-full;
   }
 
   .panel-expanded .charts-panel {
@@ -1101,7 +1131,7 @@
   }
 
   .charts-panel {
-    @apply w-full;
+    @apply min-h-[280px] w-full;
   }
 
   .predict-form {
@@ -1117,11 +1147,15 @@
   }
 
   .workspace {
-    grid-template-rows: minmax(520px, 4fr) minmax(180px, 1fr);
+    grid-template-rows: auto auto;
   }
 
   .workspace.panel-expanded {
-    grid-template-rows: minmax(420px, 1fr) minmax(620px, auto);
+    grid-template-rows: auto minmax(620px, auto);
+  }
+
+  .map-card {
+    @apply h-auto overflow-hidden;
   }
 
   .map-toolbar {
@@ -1137,18 +1171,31 @@
   }
 
   .coordinate-search {
-    @apply top-2.5 right-2.5 left-2.5 w-auto;
+    @apply static right-auto left-auto top-auto w-auto shadow-none;
+    grid-row: 1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .province-map-search {
-    @apply top-[116px] right-2.5 left-2.5 w-auto;
+    @apply static right-auto left-auto top-auto w-auto shadow-none;
+    grid-row: 2;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .map-mode-toggle {
-    @apply right-2.5 bottom-2.5 left-2.5;
+    @apply static right-auto bottom-auto left-auto w-auto shadow-none;
+    grid-row: 4;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-canvas {
+    @apply grid overflow-hidden p-2.5;
+    grid-template-rows: auto auto clamp(220px, 44dvh, 520px) auto;
+  }
+
+  .leaflet-map,
+  .leaflet-container {
+    grid-row: 3;
   }
 
   .coordinate-search label {
@@ -1169,6 +1216,10 @@
 
   .province-map-search label {
     @apply min-w-[180px] flex-1;
+  }
+
+  .province-suggestions {
+    @apply static col-span-full mt-1 w-full shadow-none;
   }
 
   .summary-primary {
@@ -1194,6 +1245,128 @@
 
   .pie-chart-wrap {
     @apply grid-cols-1;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace {
+    grid-template-rows: auto auto;
+  }
+
+  .map-card {
+    @apply h-auto overflow-hidden;
+  }
+
+  .map-canvas {
+    @apply grid overflow-hidden;
+    grid-template-rows: auto auto clamp(180px, 38dvh, 360px) auto;
+  }
+
+  .coordinate-search {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coordinate-search > button {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .leaflet-map,
+  .leaflet-container {
+    @apply min-h-0;
+  }
+}
+
+@media (max-width: 779px) {
+  html,
+  body,
+  #root,
+  .app-shell {
+    min-width: 0;
+  }
+
+  .workspace {
+    @apply block;
+    min-width: 0;
+  }
+
+  .map-area,
+  .coordinate-result,
+  .coordinate-search,
+  .province-map-search,
+  .map-mode-toggle {
+    @apply hidden;
+  }
+
+  .charts-panel {
+    @apply min-h-[680px] w-full rounded-lg;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1720px) {
+  .coordinate-search {
+    @apply static right-auto left-auto top-auto w-auto shadow-none;
+    grid-row: 1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .coordinate-search .map-pick-toggle {
+    @apply col-span-full;
+  }
+
+  .coordinate-search > button {
+    @apply self-end;
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .province-map-search {
+    @apply static right-auto left-auto top-auto w-auto shadow-none;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .map-mode-toggle {
+    @apply static right-auto bottom-auto left-auto w-auto shadow-none;
+    grid-row: 4;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-canvas {
+    @apply grid gap-2.5 p-2.5;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+
+  .leaflet-map,
+  .leaflet-container {
+    grid-row: 3;
+  }
+
+  .province-suggestions {
+    @apply static col-span-full mt-1 w-full shadow-none;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1320px) {
+  body {
+    @apply overflow-auto;
+  }
+
+  .app-shell {
+    @apply min-h-full;
+  }
+
+  .workspace,
+  .workspace.panel-expanded {
+    @apply grid-cols-1;
+  }
+
+  .charts-panel {
+    @apply min-h-[280px] w-full;
+  }
+
+  .workspace {
+    grid-template-rows: clamp(360px, calc(100dvh - 96px), 760px) minmax(220px, auto);
   }
 }
 

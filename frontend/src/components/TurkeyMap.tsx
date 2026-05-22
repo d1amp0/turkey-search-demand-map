@@ -3,6 +3,7 @@ import type { Feature, FeatureCollection, Geometry } from "geojson";
 import L from "leaflet";
 import type { Layer, LeafletMouseEvent, Path, PathOptions } from "leaflet";
 import {
+  Circle,
   CircleMarker,
   GeoJSON as LeafletGeoJSON,
   MapContainer,
@@ -12,6 +13,7 @@ import {
 } from "react-leaflet";
 import {
   fetchRegionValues,
+  fetchRadiusSummary,
   fetchRequestPoints,
   fetchTurkeyGeoJson,
 } from "../api/client";
@@ -22,6 +24,7 @@ import { heatmapPalettes } from "../types/palette";
 import type { HeatmapPalette } from "../types/palette";
 import type {
   DemandMetricKey,
+  RadiusSummaryResponse,
   RequestHeatPoint,
   RequestPointsResponse,
   RegionValuesResponse,
@@ -322,6 +325,16 @@ function featureContainsPoint(
   return false;
 }
 
+function fitMapToTurkey(map: L.Map, data: TurkeyGeoJson) {
+  const layer = L.geoJSON(data);
+  const bounds = layer.getBounds();
+  const zoom = map.getBoundsZoom(bounds, false, L.point(72, 72)) - 0.3;
+
+  map.invalidateSize();
+  map.setView(bounds.getCenter(), zoom, { animate: false });
+  map.setMaxBounds(bounds.pad(0.5));
+}
+
 function BoundsController({ data }: { data: TurkeyGeoJson | null }) {
   const map = useMap();
 
@@ -330,18 +343,44 @@ function BoundsController({ data }: { data: TurkeyGeoJson | null }) {
       return;
     }
 
-    const layer = L.geoJSON(data);
-    const bounds = layer.getBounds();
-    const zoom = map.getBoundsZoom(bounds, false, L.point(72, 72)) - 0.3;
-
-    map.invalidateSize();
-    map.setView(bounds.getCenter(), zoom, { animate: false });
-    map.setMaxBounds(bounds.pad(0.5));
+    fitMapToTurkey(map, data);
 
     requestAnimationFrame(() => {
-      map.invalidateSize();
-      map.setView(bounds.getCenter(), zoom, { animate: false });
+      fitMapToTurkey(map, data);
     });
+  }, [data, map]);
+
+  return null;
+}
+
+function ResizeController({ data }: { data: TurkeyGeoJson | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    let frame = 0;
+
+    const resizeMap = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (data) {
+          fitMapToTurkey(map, data);
+          return;
+        }
+
+        map.invalidateSize();
+      });
+    };
+
+    const observer = new ResizeObserver(resizeMap);
+    observer.observe(container);
+    window.addEventListener("resize", resizeMap);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", resizeMap);
+    };
   }, [data, map]);
 
   return null;
@@ -457,6 +496,7 @@ function RequestHeatmapLayer({
       canvas.style.height = `${size.y}px`;
       canvas.width = Math.max(1, Math.round(size.x * pixelRatio));
       canvas.height = Math.max(1, Math.round(size.y * pixelRatio));
+      L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]));
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, size.x, size.y);
 
@@ -602,6 +642,10 @@ export function TurkeyMap({
   const [error, setError] = useState<string | null>(null);
   const [latitudeInput, setLatitudeInput] = useState("39");
   const [longitudeInput, setLongitudeInput] = useState("35");
+  const [radiusInput, setRadiusInput] = useState("25");
+  const [radiusSummary, setRadiusSummary] = useState<RadiusSummaryResponse | null>(null);
+  const [radiusError, setRadiusError] = useState<string | null>(null);
+  const [isRadiusLoading, setIsRadiusLoading] = useState(false);
   const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
   const [coordinateMatch, setCoordinateMatch] = useState<CoordinateMatch | null>(null);
   const [markerPosition, setMarkerPosition] = useState<{
@@ -689,6 +733,8 @@ export function TurkeyMap({
   }, [regionData]);
 
   const requestPoints = requestPointsData?.points ?? [];
+  const radiusKm = Number(radiusInput.replace(",", "."));
+  const hasValidRadius = Number.isFinite(radiusKm) && radiusKm > 0;
 
   const loadData = useCallback(async () => {
     setError(null);
@@ -719,6 +765,8 @@ export function TurkeyMap({
     setMarkerPosition(null);
     setCoordinateMatch(null);
     setCoordinateError(null);
+    setRadiusSummary(null);
+    setRadiusError(null);
     setSelectedProvinceNumber(null);
     setIsProvinceSearchOpen(false);
     setProvinceSearch("");
@@ -729,6 +777,8 @@ export function TurkeyMap({
     setMarkerPosition(null);
     setCoordinateMatch(null);
     setCoordinateError(null);
+    setRadiusSummary(null);
+    setRadiusError(null);
     setSelectedProvinceNumber(null);
     setIsProvinceSearchOpen(false);
     setProvinceSearch("");
@@ -775,6 +825,8 @@ export function TurkeyMap({
       if (!matchingFeature) {
         setCoordinateError(t.coordinatesOutsideTurkey);
         setMarkerPosition(null);
+        setRadiusSummary(null);
+        setRadiusError(null);
         setSelectedProvinceNumber(null);
         setCoordinateMatch({
           latitude,
@@ -927,6 +979,55 @@ export function TurkeyMap({
   const hasCoordinateInputs = latitudeInput.trim() !== "" && longitudeInput.trim() !== "";
   const hasProvinceSuggestion = provinceSuggestions.length > 0;
 
+  useEffect(() => {
+    if (!markerPosition) {
+      setRadiusSummary(null);
+      setRadiusError(null);
+      setIsRadiusLoading(false);
+      return undefined;
+    }
+
+    if (!hasValidRadius) {
+      setRadiusSummary(null);
+      setRadiusError(t.enterValidRadius);
+      setIsRadiusLoading(false);
+      return undefined;
+    }
+
+    let isActive = true;
+    setRadiusError(null);
+    setIsRadiusLoading(true);
+
+    void fetchRadiusSummary(
+      filters,
+      markerPosition.latitude,
+      markerPosition.longitude,
+      radiusKm,
+    )
+      .then((summary) => {
+        if (isActive) {
+          setRadiusSummary(summary);
+        }
+      })
+      .catch((summaryError: unknown) => {
+        if (isActive) {
+          setRadiusSummary(null);
+          setRadiusError(
+            summaryError instanceof Error ? summaryError.message : t.radiusSummaryFailed,
+          );
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsRadiusLoading(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [filters, hasValidRadius, markerPosition, radiusKm, t.enterValidRadius, t.radiusSummaryFailed]);
+
   function findLocationByCoordinates() {
     const latitude = Number(latitudeInput.replace(",", "."));
     const longitude = Number(longitudeInput.replace(",", "."));
@@ -942,6 +1043,8 @@ export function TurkeyMap({
       setCoordinateError(t.enterValidCoordinates);
       setMarkerPosition(null);
       setCoordinateMatch(null);
+      setRadiusSummary(null);
+      setRadiusError(null);
       onSelectionChange(null);
       return;
     }
@@ -992,12 +1095,24 @@ export function TurkeyMap({
       </div>
 
       <div className="coordinate-result" aria-live="polite">
-        {coordinateError ??
-          (coordinateMatch
-            ? coordinateMatch.regionName
-              ? `${coordinateMatch.regionName} ${t.province.toLowerCase()} (${coordinateMatch.provinceNumber})`
-              : t.coordinatesOutsideTurkey
-            : t.selectProvinceMapHint)}
+        <span>
+          {coordinateError ??
+            (coordinateMatch
+              ? coordinateMatch.regionName
+                ? `${coordinateMatch.regionName} ${t.province.toLowerCase()} (${coordinateMatch.provinceNumber})`
+                : t.coordinatesOutsideTurkey
+              : t.selectProvinceMapHint)}
+        </span>
+        {markerPosition ? (
+          <strong>
+            {radiusError ??
+              (isRadiusLoading
+                ? t.loadingRadiusSummary
+                : radiusSummary
+                  ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
+                  : null)}
+          </strong>
+        ) : null}
       </div>
 
       <div className="map-canvas">
@@ -1116,6 +1231,15 @@ export function TurkeyMap({
               onChange={(event) => setLongitudeInput(event.target.value)}
             />
           </label>
+          <label>
+            <span>{t.radiusKm}</span>
+            <input
+              inputMode="decimal"
+              type="text"
+              value={radiusInput}
+              onChange={(event) => setRadiusInput(event.target.value)}
+            />
+          </label>
           <label className="map-pick-toggle">
             <input
               checked={isMapPickEnabled}
@@ -1143,6 +1267,7 @@ export function TurkeyMap({
           className={isMapPickEnabled ? "leaflet-map pick-enabled" : "leaflet-map"}
         >
           <BoundsController data={geoJson} />
+          <ResizeController data={geoJson} />
           <CoordinatePicker
             enabled={isMapPickEnabled}
             onMapBackgroundClick={showTurkeyOverview}
@@ -1151,7 +1276,7 @@ export function TurkeyMap({
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}-${isMapPickEnabled ? "pick" : "select"}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}
@@ -1165,16 +1290,31 @@ export function TurkeyMap({
           </Pane>
           <Pane name="marker-pane" style={{ zIndex: 450 }}>
             {markerPosition ? (
-              <CircleMarker
-                center={[markerPosition.latitude, markerPosition.longitude]}
-                pathOptions={{
-                  color: activeMarkerColors.border,
-                  fillColor: activeMarkerColors.fill,
-                  fillOpacity: 1,
-                  weight: 3,
-                }}
-                radius={8}
-              />
+              <>
+                {hasValidRadius ? (
+                  <Circle
+                    center={[markerPosition.latitude, markerPosition.longitude]}
+                    pathOptions={{
+                      color: activeMarkerColors.fill,
+                      fillColor: activeMarkerColors.fill,
+                      fillOpacity: 0.12,
+                      opacity: 0.85,
+                      weight: 2,
+                    }}
+                    radius={radiusKm * 1000}
+                  />
+                ) : null}
+                <CircleMarker
+                  center={[markerPosition.latitude, markerPosition.longitude]}
+                  pathOptions={{
+                    color: activeMarkerColors.border,
+                    fillColor: activeMarkerColors.fill,
+                    fillOpacity: 1,
+                    weight: 3,
+                  }}
+                  radius={5}
+                />
+              </>
             ) : null}
           </Pane>
         </MapContainer>

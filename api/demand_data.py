@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from functools import lru_cache
+from math import asin, cos, radians, sin, sqrt
 from typing import Any, Literal, TypedDict
 
 import pandas as pd
@@ -258,6 +259,62 @@ def get_request_points(filters: DemandFilters | None = None) -> dict[str, Any]:
     return {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "points": points,
+    }
+
+
+def _haversine_distance_km(
+    latitude: pd.Series,
+    longitude: pd.Series,
+    center_latitude: float,
+    center_longitude: float,
+) -> pd.Series:
+    earth_radius_km = 6371.0088
+    center_latitude_rad = radians(center_latitude)
+    center_longitude_rad = radians(center_longitude)
+    point_latitude = latitude.map(radians)
+    point_longitude = longitude.map(radians)
+    latitude_delta = point_latitude - center_latitude_rad
+    longitude_delta = point_longitude - center_longitude_rad
+    haversine = (
+        latitude_delta.map(lambda value: sin(value / 2) ** 2)
+        + cos(center_latitude_rad)
+        * point_latitude.map(cos)
+        * longitude_delta.map(lambda value: sin(value / 2) ** 2)
+    )
+
+    return haversine.map(
+        lambda value: 2 * earth_radius_km * asin(sqrt(min(1, value))),
+    )
+
+
+def get_radius_summary(
+    latitude: float,
+    longitude: float,
+    radius_km: float,
+    filters: DemandFilters | None = None,
+) -> dict[str, Any]:
+    frame = apply_demand_filters(get_demand_dataframe(), filters)
+    point_frame = frame.dropna(subset=["latitude", "longitude"]).copy()
+
+    if point_frame.empty:
+        searches = 0
+    else:
+        distances = _haversine_distance_km(
+            point_frame["latitude"],
+            point_frame["longitude"],
+            latitude,
+            longitude,
+        )
+        searches = int((distances <= radius_km).sum())
+
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "center": {
+            "latitude": latitude,
+            "longitude": longitude,
+        },
+        "radius_km": radius_km,
+        "searches": searches,
     }
 
 

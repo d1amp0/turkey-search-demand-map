@@ -35,6 +35,21 @@ FEATURE_COLUMNS = [
     "day_of_week_6",
 ]
 
+ALLOWED_PREDICTION_PROVINCES = {
+    1,
+    6,
+    7,
+    16,
+    21,
+    27,
+    34,
+    35,
+    38,
+    41,
+    42,
+    66,
+}
+
 
 class PredictionRequest(BaseModel):
     province_number: int = Field(..., ge=1, le=81)
@@ -307,6 +322,12 @@ def build_features_for_province(
 
 
 def predict_demand(payload: PredictionRequest) -> PredictionResponse:
+    if payload.province_number not in ALLOWED_PREDICTION_PROVINCES:
+        raise HTTPException(
+            status_code=400,
+            detail="Prediction is available only for selected provinces",
+        )
+
     try:
         model = load_model()
     except FileNotFoundError as error:
@@ -339,6 +360,12 @@ def predict_demand(payload: PredictionRequest) -> PredictionResponse:
 def predict_recursive_demand(
     payload: RecursivePredictionRequest,
 ) -> RecursivePredictionResponse:
+    if payload.province_number not in ALLOWED_PREDICTION_PROVINCES:
+        raise HTTPException(
+            status_code=400,
+            detail="Prediction is available only for selected provinces",
+        )
+
     try:
         model = load_model()
     except FileNotFoundError as error:

@@ -10,6 +10,7 @@ import type { CoordinateMatch } from "./types/selection";
 import type { PredictionWindow, RecursivePredictionPoint } from "./types/ml";
 
 type Theme = "light" | "dark";
+const STATS_ONLY_QUERY = "(max-width: 1000px)";
 const PredictPanel = lazy(() =>
   import("./components/PredictPanel").then((module) => ({
     default: module.PredictPanel,
@@ -20,6 +21,24 @@ const SelectionSummary = lazy(() =>
     default: module.SelectionSummary,
   })),
 );
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const updateMatches = () => setMatches(mediaQuery.matches);
+
+    updateMatches();
+    mediaQuery.addEventListener("change", updateMatches);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateMatches);
+    };
+  }, [query]);
+
+  return matches;
+}
 
 export function App() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -38,6 +57,7 @@ export function App() {
   const [isAnalyticsReady, setIsAnalyticsReady] = useState(false);
   const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(null);
   const [recursivePredictions, setRecursivePredictions] = useState<RecursivePredictionPoint[]>([]);
+  const isStatsOnlyLayout = useMediaQuery(STATS_ONLY_QUERY);
 
   function updateTheme(nextTheme: Theme) {
     window.localStorage.setItem("theme", nextTheme);
@@ -84,6 +104,17 @@ export function App() {
     setPredictionWindow(null);
     setRecursivePredictions([]);
   }, [resetVersion, selection?.provinceNumber]);
+
+  useEffect(() => {
+    if (!isStatsOnlyLayout) {
+      return;
+    }
+
+    setSelection(null);
+    setPredictionWindow(null);
+    setRecursivePredictions([]);
+    setIsPanelExpanded(false);
+  }, [isStatsOnlyLayout]);
 
   return (
     <main
@@ -136,19 +167,27 @@ export function App() {
           </button>
         </div>
       </nav>
-      <section className={isPanelExpanded ? "workspace panel-expanded" : "workspace"}>
-        <div className="map-area">
-          <TurkeyMap
-            filters={filters}
-            heatmapPalette={heatmapPalette}
-            language={language}
-            theme={theme}
-            onHeatmapPaletteChange={setHeatmapPalette}
-            onResetUserControls={resetUserControls}
-            onSelectionChange={setSelection}
-            resetVersion={resetVersion}
-          />
-        </div>
+      <section
+        className={[
+          "workspace",
+          isPanelExpanded ? "panel-expanded" : "",
+          isStatsOnlyLayout ? "stats-only" : "",
+        ].filter(Boolean).join(" ")}
+      >
+        {!isStatsOnlyLayout ? (
+          <div className="map-area">
+            <TurkeyMap
+              filters={filters}
+              heatmapPalette={heatmapPalette}
+              language={language}
+              theme={theme}
+              onHeatmapPaletteChange={setHeatmapPalette}
+              onResetUserControls={resetUserControls}
+              onSelectionChange={setSelection}
+              resetVersion={resetVersion}
+            />
+          </div>
+        ) : null}
         <aside className="charts-panel" aria-label={translations[language].chartsPanel}>
           {isAnalyticsReady ? (
             <Suspense fallback={<div className="summary-empty">{translations[language].loadingAnalytics}</div>}>

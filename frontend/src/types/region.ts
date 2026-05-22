@@ -28,6 +28,16 @@ export type RequestPointsResponse = {
   points: RequestHeatPoint[];
 };
 
+export type RadiusSummaryResponse = {
+  updated_at: string;
+  center: {
+    latitude: number;
+    longitude: number;
+  };
+  radius_km: number;
+  searches: number;
+};
+
 export type DemandMetricKey =
   | "searches"
   | "avg_rating";

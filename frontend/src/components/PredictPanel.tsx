@@ -9,6 +9,21 @@ import type {
 import type { CoordinateMatch } from "../types/selection";
 import type { Language } from "../i18n";
 
+const allowedPredictionProvinceNumbers = new Set([
+  1,
+  6,
+  7,
+  16,
+  21,
+  27,
+  34,
+  35,
+  38,
+  41,
+  42,
+  66,
+]);
+
 export function PredictPanel({
   language,
   predictionWindow,
@@ -26,7 +41,10 @@ export function PredictPanel({
   const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const canPredict = Boolean(selection?.provinceNumber && predictionWindow);
+  const isProvinceAllowed = selection?.provinceNumber
+    ? allowedPredictionProvinceNumbers.has(selection.provinceNumber)
+    : false;
+  const canPredict = Boolean(selection?.provinceNumber && predictionWindow && isProvinceAllowed);
 
   useEffect(() => {
     void fetchModelInfo()
@@ -83,6 +101,8 @@ export function PredictPanel({
       <p className="predict-help">
         {canPredict
           ? `${selection?.regionName ?? t.province}: ${t.mlPredictHelp}`
+          : selection?.provinceNumber && !isProvinceAllowed
+            ? t.predictionProvinceUnavailable
           : t.selectProvinceForPrediction}
       </p>
 
