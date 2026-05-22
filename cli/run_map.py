@@ -281,7 +281,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=root / "data" / "df.csv",
+        default=root / "data" / "df_with_cat.csv",
         help="Output CSV path.",
     )
     parser.add_argument(

@@ -9,11 +9,9 @@ import {
   MapContainer,
   Pane,
   useMap,
-  useMapEvents,
 } from "react-leaflet";
 import {
   fetchRegionValues,
-  fetchRadiusSummary,
   fetchRequestPoints,
   fetchTurkeyGeoJson,
 } from "../api/client";
@@ -24,7 +22,6 @@ import { heatmapPalettes } from "../types/palette";
 import type { HeatmapPalette } from "../types/palette";
 import type {
   DemandMetricKey,
-  RadiusSummaryResponse,
   RequestHeatPoint,
   RequestPointsResponse,
   RegionValuesResponse,
@@ -268,63 +265,6 @@ function provinceSearchScore(query: string, provinceName: string) {
   return baseDistance;
 }
 
-function pointInRing(
-  longitude: number,
-  latitude: number,
-  ring: number[][],
-) {
-  let isInside = false;
-
-  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
-    const [currentLongitude, currentLatitude] = ring[index];
-    const [previousLongitude, previousLatitude] = ring[previous];
-    const intersects =
-      currentLatitude > latitude !== previousLatitude > latitude &&
-      longitude <
-        ((previousLongitude - currentLongitude) * (latitude - currentLatitude)) /
-          (previousLatitude - currentLatitude) +
-          currentLongitude;
-
-    if (intersects) {
-      isInside = !isInside;
-    }
-  }
-
-  return isInside;
-}
-
-function pointInPolygon(
-  longitude: number,
-  latitude: number,
-  coordinates: number[][][],
-) {
-  const [outerRing, ...holes] = coordinates;
-
-  if (!pointInRing(longitude, latitude, outerRing)) {
-    return false;
-  }
-
-  return !holes.some((hole) => pointInRing(longitude, latitude, hole));
-}
-
-function featureContainsPoint(
-  feature: Feature<Geometry, TurkeyProvinceProperties>,
-  longitude: number,
-  latitude: number,
-) {
-  if (feature.geometry.type === "Polygon") {
-    return pointInPolygon(longitude, latitude, feature.geometry.coordinates);
-  }
-
-  if (feature.geometry.type === "MultiPolygon") {
-    return feature.geometry.coordinates.some((polygon) =>
-      pointInPolygon(longitude, latitude, polygon),
-    );
-  }
-
-  return false;
-}
-
 function fitMapToTurkey(map: L.Map, data: TurkeyGeoJson) {
   const layer = L.geoJSON(data);
   const bounds = layer.getBounds();
@@ -382,29 +322,6 @@ function ResizeController({ data }: { data: TurkeyGeoJson | null }) {
       window.removeEventListener("resize", resizeMap);
     };
   }, [data, map]);
-
-  return null;
-}
-
-function CoordinatePicker({
-  enabled,
-  onMapBackgroundClick,
-  onPick,
-}: {
-  enabled: boolean;
-  onMapBackgroundClick: () => void;
-  onPick: (latitude: number, longitude: number) => void;
-}) {
-  useMapEvents({
-    click: (event) => {
-      if (enabled) {
-        onPick(event.latlng.lat, event.latlng.lng);
-        return;
-      }
-
-      onMapBackgroundClick();
-    },
-  });
 
   return null;
 }
@@ -543,7 +460,6 @@ function RequestHeatmapLayer({
         ]);
         const ratio = Math.pow(point.searches / maxSearches, 2);
         const radius = baseRadius + ratio * 34;
-        console.log(maxSearches);
 
         if (
           containerPoint.x < -radius ||
@@ -623,7 +539,9 @@ export function TurkeyMap({
   onHeatmapPaletteChange,
   onResetUserControls,
   onSelectionChange,
+  radiusKm,
   resetVersion,
+  selection,
 }: {
   filters: DemandFilters;
   heatmapPalette: HeatmapPalette;
@@ -632,7 +550,9 @@ export function TurkeyMap({
   onHeatmapPaletteChange: (palette: HeatmapPalette) => void;
   onResetUserControls: () => void;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
+  radiusKm: number;
   resetVersion: number;
+  selection: CoordinateMatch | null;
 }) {
   const t = translations[language];
   const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
@@ -640,19 +560,6 @@ export function TurkeyMap({
   const [requestPointsData, setRequestPointsData] =
     useState<RequestPointsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [latitudeInput, setLatitudeInput] = useState("39");
-  const [longitudeInput, setLongitudeInput] = useState("35");
-  const [radiusInput, setRadiusInput] = useState("25");
-  const [radiusSummary, setRadiusSummary] = useState<RadiusSummaryResponse | null>(null);
-  const [radiusError, setRadiusError] = useState<string | null>(null);
-  const [isRadiusLoading, setIsRadiusLoading] = useState(false);
-  const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
-  const [coordinateMatch, setCoordinateMatch] = useState<CoordinateMatch | null>(null);
-  const [markerPosition, setMarkerPosition] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const [coordinateError, setCoordinateError] = useState<string | null>(null);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [isProvinceSearchOpen, setIsProvinceSearchOpen] = useState(false);
   const [provinceSearch, setProvinceSearch] = useState("");
@@ -663,6 +570,14 @@ export function TurkeyMap({
   const [mapHeatMode, setMapHeatMode] = useState<MapHeatMode>("regions");
   const activeMetric = filters.metric;
   const activeMarkerColors = markerColors(heatmapPalette, theme);
+  const markerPosition =
+    selection && selection.latitude !== null && selection.longitude !== null
+      ? {
+          latitude: selection.latitude,
+          longitude: selection.longitude,
+        }
+      : null;
+  const hasValidRadius = Number.isFinite(radiusKm) && radiusKm > 0;
 
   const provinceSuggestions = useMemo<ProvinceSuggestion[]>(() => {
     const query = provinceSearch.trim();
@@ -733,8 +648,6 @@ export function TurkeyMap({
   }, [regionData]);
 
   const requestPoints = requestPointsData?.points ?? [];
-  const radiusKm = Number(radiusInput.replace(",", "."));
-  const hasValidRadius = Number.isFinite(radiusKm) && radiusKm > 0;
 
   const loadData = useCallback(async () => {
     setError(null);
@@ -759,31 +672,11 @@ export function TurkeyMap({
   }, [loadData, refreshVersion]);
 
   const clearMapInputs = useCallback(() => {
-    setLatitudeInput("");
-    setLongitudeInput("");
-    setIsMapPickEnabled(false);
-    setMarkerPosition(null);
-    setCoordinateMatch(null);
-    setCoordinateError(null);
-    setRadiusSummary(null);
-    setRadiusError(null);
     setSelectedProvinceNumber(null);
     setIsProvinceSearchOpen(false);
     setProvinceSearch("");
     setActiveSuggestionIndex(0);
   }, []);
-
-  const showTurkeyOverview = useCallback(() => {
-    setMarkerPosition(null);
-    setCoordinateMatch(null);
-    setCoordinateError(null);
-    setRadiusSummary(null);
-    setRadiusError(null);
-    setSelectedProvinceNumber(null);
-    setIsProvinceSearchOpen(false);
-    setProvinceSearch("");
-    onSelectionChange(null);
-  }, [onSelectionChange]);
 
   useEffect(() => {
     if (resetVersion === 0) {
@@ -796,14 +689,6 @@ export function TurkeyMap({
   const selectProvince = useCallback(
     (province: { name: string; number: number }) => {
       setSelectedProvinceNumber(province.number);
-      setCoordinateError(null);
-      setCoordinateMatch({
-        latitude: null,
-        longitude: null,
-        regionName: province.name,
-        provinceNumber: province.number,
-      });
-      setMarkerPosition(null);
       setProvinceSearch(province.name);
       setIsProvinceSearchOpen(false);
       onSelectionChange({
@@ -816,52 +701,12 @@ export function TurkeyMap({
     [onSelectionChange],
   );
 
-  const updateCoordinateMatch = useCallback(
-    (latitude: number, longitude: number) => {
-      const matchingFeature = geoJson?.features.find((feature) =>
-        featureContainsPoint(feature, longitude, latitude),
-      );
-
-      if (!matchingFeature) {
-        setCoordinateError(t.coordinatesOutsideTurkey);
-        setMarkerPosition(null);
-        setRadiusSummary(null);
-        setRadiusError(null);
-        setSelectedProvinceNumber(null);
-        setCoordinateMatch({
-          latitude,
-          longitude,
-          regionName: null,
-          provinceNumber: null,
-        });
-        onSelectionChange(null);
-        return;
-      }
-
-      const nextSelection = {
-        latitude,
-        longitude,
-        regionName: matchingFeature.properties.name,
-        provinceNumber: matchingFeature.properties.number,
-      };
-
-      setCoordinateError(null);
-      setMarkerPosition({ latitude, longitude });
-      setSelectedProvinceNumber(matchingFeature.properties.number);
-      setCoordinateMatch(nextSelection);
-      onSelectionChange(nextSelection);
-    },
-    [geoJson, onSelectionChange, t.coordinatesOutsideTurkey],
-  );
-
-  const pickLocationOnMap = useCallback(
-    (latitude: number, longitude: number) => {
-      setLatitudeInput(latitude.toFixed(6));
-      setLongitudeInput(longitude.toFixed(6));
-      updateCoordinateMatch(latitude, longitude);
-    },
-    [updateCoordinateMatch],
-  );
+  useEffect(() => {
+    setSelectedProvinceNumber(selection?.provinceNumber ?? null);
+    if (selection?.regionName) {
+      setProvinceSearch(selection.regionName);
+    }
+  }, [selection?.provinceNumber, selection?.regionName]);
 
   const styleRegion = useCallback(
     (feature?: Feature<Geometry, TurkeyProvinceProperties>) => {
@@ -942,10 +787,6 @@ export function TurkeyMap({
         },
         click: (event: LeafletMouseEvent) => {
           L.DomEvent.stopPropagation(event);
-          if (isMapPickEnabled) {
-            pickLocationOnMap(event.latlng.lat, event.latlng.lng);
-            return;
-          }
 
           selectProvince({
             name: feature.properties.name,
@@ -961,9 +802,7 @@ export function TurkeyMap({
     [
       activeMetric,
       regionData,
-      isMapPickEnabled,
       mapHeatMode,
-      pickLocationOnMap,
       selectProvince,
       selectedProvinceNumber,
       styleRegion,
@@ -976,81 +815,7 @@ export function TurkeyMap({
   const updatedAt = regionData?.updated_at
     ? new Date(regionData.updated_at).toLocaleString()
     : t.loadingData;
-  const hasCoordinateInputs = latitudeInput.trim() !== "" && longitudeInput.trim() !== "";
   const hasProvinceSuggestion = provinceSuggestions.length > 0;
-
-  useEffect(() => {
-    if (!markerPosition) {
-      setRadiusSummary(null);
-      setRadiusError(null);
-      setIsRadiusLoading(false);
-      return undefined;
-    }
-
-    if (!hasValidRadius) {
-      setRadiusSummary(null);
-      setRadiusError(t.enterValidRadius);
-      setIsRadiusLoading(false);
-      return undefined;
-    }
-
-    let isActive = true;
-    setRadiusError(null);
-    setIsRadiusLoading(true);
-
-    void fetchRadiusSummary(
-      filters,
-      markerPosition.latitude,
-      markerPosition.longitude,
-      radiusKm,
-    )
-      .then((summary) => {
-        if (isActive) {
-          setRadiusSummary(summary);
-        }
-      })
-      .catch((summaryError: unknown) => {
-        if (isActive) {
-          setRadiusSummary(null);
-          setRadiusError(
-            summaryError instanceof Error ? summaryError.message : t.radiusSummaryFailed,
-          );
-        }
-      })
-      .finally(() => {
-        if (isActive) {
-          setIsRadiusLoading(false);
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [filters, hasValidRadius, markerPosition, radiusKm, t.enterValidRadius, t.radiusSummaryFailed]);
-
-  function findLocationByCoordinates() {
-    const latitude = Number(latitudeInput.replace(",", "."));
-    const longitude = Number(longitudeInput.replace(",", "."));
-
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
-      setCoordinateError(t.enterValidCoordinates);
-      setMarkerPosition(null);
-      setCoordinateMatch(null);
-      setRadiusSummary(null);
-      setRadiusError(null);
-      onSelectionChange(null);
-      return;
-    }
-
-    updateCoordinateMatch(latitude, longitude);
-  }
 
   function refreshData() {
     clearMapInputs();
@@ -1092,27 +857,6 @@ export function TurkeyMap({
             {t.reset}
           </button>
         </div>
-      </div>
-
-      <div className="coordinate-result" aria-live="polite">
-        <span>
-          {coordinateError ??
-            (coordinateMatch
-              ? coordinateMatch.regionName
-                ? `${coordinateMatch.regionName} ${t.province.toLowerCase()} (${coordinateMatch.provinceNumber})`
-                : t.coordinatesOutsideTurkey
-              : t.selectProvinceMapHint)}
-        </span>
-        {markerPosition ? (
-          <strong>
-            {radiusError ??
-              (isRadiusLoading
-                ? t.loadingRadiusSummary
-                : radiusSummary
-                  ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
-                  : null)}
-          </strong>
-        ) : null}
       </div>
 
       <div className="map-canvas">
@@ -1208,50 +952,6 @@ export function TurkeyMap({
             </div>
           ) : null}
         </form>
-        <form
-          className="coordinate-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            findLocationByCoordinates();
-          }}
-        >
-          <label>
-            <span>{t.lat}</span>
-            <input
-              inputMode="decimal"
-              value={latitudeInput}
-              onChange={(event) => setLatitudeInput(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t.lon}</span>
-            <input
-              inputMode="decimal"
-              value={longitudeInput}
-              onChange={(event) => setLongitudeInput(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t.radiusKm}</span>
-            <input
-              inputMode="decimal"
-              type="text"
-              value={radiusInput}
-              onChange={(event) => setRadiusInput(event.target.value)}
-            />
-          </label>
-          <label className="map-pick-toggle">
-            <input
-              checked={isMapPickEnabled}
-              onChange={(event) => setIsMapPickEnabled(event.target.checked)}
-              type="checkbox"
-            />
-            <span>{t.pickOnMap}</span>
-            <em>{t.pickOnMapHelp}</em>
-          </label>
-          <button disabled={!hasCoordinateInputs} type="submit">{t.find}</button>
-          <p className="control-help">{t.coordinateSearchHelp}</p>
-        </form>
         <MapContainer
           center={[39, 35]}
           zoom={6}
@@ -1264,19 +964,14 @@ export function TurkeyMap({
           zoomSnap={0.1}
           zoomControl={false}
           attributionControl={false}
-          className={isMapPickEnabled ? "leaflet-map pick-enabled" : "leaflet-map"}
+          className="leaflet-map"
         >
           <BoundsController data={geoJson} />
           <ResizeController data={geoJson} />
-          <CoordinatePicker
-            enabled={isMapPickEnabled}
-            onMapBackgroundClick={showTurkeyOverview}
-            onPick={pickLocationOnMap}
-          />
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}-${isMapPickEnabled ? "pick" : "select"}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}

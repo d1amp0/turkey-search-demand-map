@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 import {
   fetchDemandOverview,
   fetchProvinceDemand,
+  fetchRadiusSummary,
+  fetchTurkeyGeoJson,
 } from "../api/client";
 import { translations, translateCategory } from "../i18n";
 import type { DemandFilters } from "../types/filters";
@@ -13,10 +16,14 @@ import type {
   DemandOverviewResponse,
   HourlySearchPoint,
   ProvinceDemandResponse,
+  RadiusSummaryResponse,
   TimeSearchPoint,
   TopOrganization,
+  TurkeyProvinceProperties,
 } from "../types/region";
 import type { CoordinateMatch } from "../types/selection";
+
+type TurkeyGeoJson = FeatureCollection<Geometry, TurkeyProvinceProperties>;
 
 const timeWindowOptions = [
   { key: "day", labelKey: "day", durationHours: 24 },
@@ -78,6 +85,63 @@ function formatLocalDateKey(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function pointInRing(
+  longitude: number,
+  latitude: number,
+  ring: number[][],
+) {
+  let isInside = false;
+
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const [currentLongitude, currentLatitude] = ring[index];
+    const [previousLongitude, previousLatitude] = ring[previous];
+    const intersects =
+      currentLatitude > latitude !== previousLatitude > latitude &&
+      longitude <
+        ((previousLongitude - currentLongitude) * (latitude - currentLatitude)) /
+          (previousLatitude - currentLatitude) +
+          currentLongitude;
+
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
+function pointInPolygon(
+  longitude: number,
+  latitude: number,
+  coordinates: number[][][],
+) {
+  const [outerRing, ...holes] = coordinates;
+
+  if (!pointInRing(longitude, latitude, outerRing)) {
+    return false;
+  }
+
+  return !holes.some((hole) => pointInRing(longitude, latitude, hole));
+}
+
+function featureContainsPoint(
+  feature: Feature<Geometry, TurkeyProvinceProperties>,
+  longitude: number,
+  latitude: number,
+) {
+  if (feature.geometry.type === "Polygon") {
+    return pointInPolygon(longitude, latitude, feature.geometry.coordinates);
+  }
+
+  if (feature.geometry.type === "MultiPolygon") {
+    return feature.geometry.coordinates.some((polygon) =>
+      pointInPolygon(longitude, latitude, polygon),
+    );
+  }
+
+  return false;
 }
 
 function addHours(timestamp: number, hours: number) {
@@ -917,7 +981,10 @@ export function SelectionSummary({
   language,
   onExpandedChange,
   onPredictionWindowChange,
+  onRadiusKmChange,
+  onSelectionChange,
   predictionData,
+  radiusKm,
   selection,
 }: {
   filters: DemandFilters;
@@ -926,7 +993,10 @@ export function SelectionSummary({
   language: Language;
   onExpandedChange: (isExpanded: boolean) => void;
   onPredictionWindowChange: (window: PredictionWindow) => void;
+  onRadiusKmChange: (radiusKm: number) => void;
+  onSelectionChange: (selection: CoordinateMatch | null) => void;
   predictionData: RecursivePredictionPoint[];
+  radiusKm: number;
   selection: CoordinateMatch | null;
 }) {
   const t = translations[language];
@@ -936,6 +1006,24 @@ export function SelectionSummary({
   const [error, setError] = useState<string | null>(null);
   const [timeWindow, setTimeWindow] = useState<TimeWindowKey>("day");
   const [timeOffset, setTimeOffset] = useState(0);
+  const [geoJson, setGeoJson] = useState<TurkeyGeoJson | null>(null);
+  const [latitudeInput, setLatitudeInput] = useState("39");
+  const [longitudeInput, setLongitudeInput] = useState("35");
+  const [radiusInput, setRadiusInput] = useState(String(radiusKm));
+  const [coordinateError, setCoordinateError] = useState<string | null>(null);
+  const [radiusSummary, setRadiusSummary] = useState<RadiusSummaryResponse | null>(null);
+  const [radiusError, setRadiusError] = useState<string | null>(null);
+  const [isRadiusLoading, setIsRadiusLoading] = useState(false);
+
+  useEffect(() => {
+    void fetchTurkeyGeoJson()
+      .then((nextGeoJson) => {
+        setGeoJson(nextGeoJson);
+      })
+      .catch((loadError) => {
+        setCoordinateError(loadError instanceof Error ? loadError.message : t.failedToLoadMap);
+      });
+  }, [t.failedToLoadMap]);
 
   useEffect(() => {
     void fetchDemandOverview(filters)
@@ -999,6 +1087,8 @@ export function SelectionSummary({
   const subtitle = provinceDemand
     ? `${t.province} ${provinceDemand.province_number}`
     : t.allMappedProvinces;
+  const selectionLatitude = selection?.latitude ?? null;
+  const selectionLongitude = selection?.longitude ?? null;
 
   useEffect(() => {
     if (!canShowDailyRequestChart && timeWindow === "day") {
@@ -1030,8 +1120,122 @@ export function SelectionSummary({
     selection?.provinceNumber,
     timeChart.predictionAnchorPoint,
     timeChart.predictionHours,
-    timeChart.predictionStartTimestamp,
+      timeChart.predictionStartTimestamp,
   ]);
+
+  useEffect(() => {
+    if (selectionLatitude !== null && selectionLongitude !== null) {
+      setLatitudeInput(selectionLatitude.toFixed(6));
+      setLongitudeInput(selectionLongitude.toFixed(6));
+    }
+  }, [selectionLatitude, selectionLongitude]);
+
+  useEffect(() => {
+    const nextRadiusInput = String(radiusKm);
+
+    setRadiusInput((currentRadiusInput) =>
+      Number(currentRadiusInput.replace(",", ".")) === radiusKm
+        ? currentRadiusInput
+        : nextRadiusInput,
+    );
+  }, [radiusKm]);
+
+  useEffect(() => {
+    if (selectionLatitude === null || selectionLongitude === null) {
+      setRadiusSummary(null);
+      setRadiusError(null);
+      setIsRadiusLoading(false);
+      return undefined;
+    }
+
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+      setRadiusSummary(null);
+      setRadiusError(t.enterValidRadius);
+      setIsRadiusLoading(false);
+      return undefined;
+    }
+
+    let isActive = true;
+    setRadiusError(null);
+    setIsRadiusLoading(true);
+
+    void fetchRadiusSummary(filters, selectionLatitude, selectionLongitude, radiusKm)
+      .then((summary) => {
+        if (isActive) {
+          setRadiusSummary(summary);
+        }
+      })
+      .catch((summaryError: unknown) => {
+        if (isActive) {
+          setRadiusSummary(null);
+          setRadiusError(
+            summaryError instanceof Error ? summaryError.message : t.radiusSummaryFailed,
+          );
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsRadiusLoading(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    filters,
+    radiusKm,
+    selectionLatitude,
+    selectionLongitude,
+    t.enterValidRadius,
+    t.radiusSummaryFailed,
+  ]);
+
+  function findLocationByCoordinates() {
+    const latitude = Number(latitudeInput.replace(",", "."));
+    const longitude = Number(longitudeInput.replace(",", "."));
+    const nextRadiusKm = Number(radiusInput.replace(",", "."));
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      setCoordinateError(t.enterValidCoordinates);
+      setRadiusSummary(null);
+      onSelectionChange(null);
+      return;
+    }
+
+    if (!Number.isFinite(nextRadiusKm) || nextRadiusKm <= 0) {
+      setCoordinateError(t.enterValidRadius);
+      setRadiusSummary(null);
+      return;
+    }
+
+    const matchingFeature = geoJson?.features.find((feature) =>
+      featureContainsPoint(feature, longitude, latitude),
+    );
+
+    if (!matchingFeature) {
+      setCoordinateError(t.coordinatesOutsideTurkey);
+      setRadiusSummary(null);
+      onSelectionChange(null);
+      return;
+    }
+
+    setCoordinateError(null);
+    onRadiusKmChange(nextRadiusKm);
+    onSelectionChange({
+      latitude,
+      longitude,
+      regionName: matchingFeature.properties.name,
+      provinceNumber: matchingFeature.properties.number,
+    });
+  }
 
   return (
     <section
@@ -1061,6 +1265,55 @@ export function SelectionSummary({
               </span>
             </div>
           </div>
+
+          <form
+            className="analytics-coordinate-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              findLocationByCoordinates();
+            }}
+          >
+            <label>
+              <span>{t.lat}</span>
+              <input
+                inputMode="decimal"
+                value={latitudeInput}
+                onChange={(event) => setLatitudeInput(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>{t.lon}</span>
+              <input
+                inputMode="decimal"
+                value={longitudeInput}
+                onChange={(event) => setLongitudeInput(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>{t.radiusKm}</span>
+              <input
+                inputMode="decimal"
+                type="text"
+                value={radiusInput}
+                onChange={(event) => setRadiusInput(event.target.value)}
+              />
+            </label>
+            <button
+              disabled={latitudeInput.trim() === "" || longitudeInput.trim() === ""}
+              type="submit"
+            >
+              {t.find}
+            </button>
+            <p className="control-help">
+              {coordinateError ??
+                radiusError ??
+                (isRadiusLoading
+                  ? t.loadingRadiusSummary
+                  : radiusSummary
+                    ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
+                    : t.coordinateSearchHelp)}
+            </p>
+          </form>
 
           <dl className="summary-grid">
             <MetricTile label={t.requests} value={formatInteger(summary.searches)} />

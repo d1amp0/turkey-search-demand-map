@@ -68,7 +68,7 @@ Input logs are **search-system request logs** (JSONL). Use the CLI to slim recor
 python cli/run_map.py --logs path/to/logs.jsonl --geojson data/tr-cities.json
 ```
 
-By default the result is written to `data/df.csv`. Query cleanup is **skipped** unless you opt in (see below). See `python cli/run_map.py --help` for required JSONL fields.
+By default the result is written to `data/df_with_cat.csv`. Query cleanup is **skipped** unless you opt in (see below). See `python cli/run_map.py --help` for required JSONL fields.
 
 ### Optional query cleanup
 

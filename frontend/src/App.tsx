@@ -57,6 +57,7 @@ export function App() {
   const [isAnalyticsReady, setIsAnalyticsReady] = useState(false);
   const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(null);
   const [recursivePredictions, setRecursivePredictions] = useState<RecursivePredictionPoint[]>([]);
+  const [selectedRadiusKm, setSelectedRadiusKm] = useState(25);
   const isStatsOnlyLayout = useMediaQuery(STATS_ONLY_QUERY);
 
   function updateTheme(nextTheme: Theme) {
@@ -73,6 +74,7 @@ export function App() {
     setFilters(emptyDemandFilters);
     setHeatmapPalette("blue");
     setSelection(null);
+    setSelectedRadiusKm(25);
     setIsPanelExpanded(false);
     setPredictionWindow(null);
     setRecursivePredictions([]);
@@ -184,7 +186,9 @@ export function App() {
               onHeatmapPaletteChange={setHeatmapPalette}
               onResetUserControls={resetUserControls}
               onSelectionChange={setSelection}
+              radiusKm={selectedRadiusKm}
               resetVersion={resetVersion}
+              selection={selection}
             />
           </div>
         ) : null}
@@ -207,7 +211,10 @@ export function App() {
                 language={language}
                 onExpandedChange={setIsPanelExpanded}
                 onPredictionWindowChange={setPredictionWindow}
+                onRadiusKmChange={setSelectedRadiusKm}
+                onSelectionChange={setSelection}
                 predictionData={recursivePredictions}
+                radiusKm={selectedRadiusKm}
                 selection={selection}
               />
             </Suspense>
