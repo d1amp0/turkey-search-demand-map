@@ -458,7 +458,7 @@ function TimeWindowSlider({
   const windowOption =
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
   const durationHours = windowOption.durationHours ?? 24 * 30;
-  const handleWidthPercent = clamp((durationHours / (24 * 30)) * 100, 10, 100);
+  const handleWidthPercent = clamp((durationHours / (24 * 30)) * 100, 10, 42);
   const safeValue = clamp(value, 0, max);
   const leftPercent = max > 0 ? (safeValue / max) * (100 - handleWidthPercent) : 0;
 
@@ -977,9 +977,11 @@ function getSummary(data: DemandOverviewResponse | ProvinceDemandResponse | null
 export function SelectionSummary({
   filters,
   heatmapPalette,
+  isMapPickEnabled,
   isExpanded,
   language,
   onExpandedChange,
+  onMapPickEnabledChange,
   onPredictionWindowChange,
   onRadiusKmChange,
   onSelectionChange,
@@ -989,9 +991,11 @@ export function SelectionSummary({
 }: {
   filters: DemandFilters;
   heatmapPalette: HeatmapPalette;
+  isMapPickEnabled: boolean;
   isExpanded: boolean;
   language: Language;
   onExpandedChange: (isExpanded: boolean) => void;
+  onMapPickEnabledChange: (isEnabled: boolean) => void;
   onPredictionWindowChange: (window: PredictionWindow) => void;
   onRadiusKmChange: (radiusKm: number) => void;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
@@ -1266,54 +1270,65 @@ export function SelectionSummary({
             </div>
           </div>
 
-          <form
-            className="analytics-coordinate-search"
-            onSubmit={(event) => {
-              event.preventDefault();
-              findLocationByCoordinates();
-            }}
-          >
-            <label>
-              <span>{t.lat}</span>
-              <input
-                inputMode="decimal"
-                value={latitudeInput}
-                onChange={(event) => setLatitudeInput(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>{t.lon}</span>
-              <input
-                inputMode="decimal"
-                value={longitudeInput}
-                onChange={(event) => setLongitudeInput(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>{t.radiusKm}</span>
-              <input
-                inputMode="decimal"
-                type="text"
-                value={radiusInput}
-                onChange={(event) => setRadiusInput(event.target.value)}
-              />
-            </label>
-            <button
-              disabled={latitudeInput.trim() === "" || longitudeInput.trim() === ""}
-              type="submit"
+          {!provinceDemand ? (
+            <form
+              className="analytics-coordinate-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                findLocationByCoordinates();
+              }}
             >
-              {t.find}
-            </button>
-            <p className="control-help">
-              {coordinateError ??
-                radiusError ??
-                (isRadiusLoading
-                  ? t.loadingRadiusSummary
-                  : radiusSummary
-                    ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
-                    : t.coordinateSearchHelp)}
-            </p>
-          </form>
+              <label>
+                <span>{t.lat}</span>
+                <input
+                  inputMode="decimal"
+                  value={latitudeInput}
+                  onChange={(event) => setLatitudeInput(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>{t.lon}</span>
+                <input
+                  inputMode="decimal"
+                  value={longitudeInput}
+                  onChange={(event) => setLongitudeInput(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>{t.radiusKm}</span>
+                <input
+                  inputMode="decimal"
+                  type="text"
+                  value={radiusInput}
+                  onChange={(event) => setRadiusInput(event.target.value)}
+                />
+              </label>
+              <button
+                disabled={latitudeInput.trim() === "" || longitudeInput.trim() === ""}
+                type="submit"
+              >
+                {t.find}
+              </button>
+              <label className="map-pick-toggle">
+                <input
+                  checked={isMapPickEnabled}
+                  onChange={(event) => onMapPickEnabledChange(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>{t.pickOnMap}</span>
+                <em>{t.pickOnMapHelp}</em>
+              </label>
+              <p className="control-help">
+                {coordinateError ??
+                  radiusError ??
+                  (isRadiusLoading
+                    ? t.loadingRadiusSummary
+                    : radiusSummary
+                      ? `${radiusSummary.searches.toLocaleString()} ${t.requests.toLowerCase()} · ${radiusSummary.radius_km} km`
+                      : t.coordinateSearchHelp)}
+              </p>
+            </form>
+          ) : null}
 
           <dl className="summary-grid">
             <MetricTile label={t.requests} value={formatInteger(summary.searches)} />

@@ -58,6 +58,7 @@ export function App() {
   const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(null);
   const [recursivePredictions, setRecursivePredictions] = useState<RecursivePredictionPoint[]>([]);
   const [selectedRadiusKm, setSelectedRadiusKm] = useState(25);
+  const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
   const isStatsOnlyLayout = useMediaQuery(STATS_ONLY_QUERY);
 
   function updateTheme(nextTheme: Theme) {
@@ -75,6 +76,7 @@ export function App() {
     setHeatmapPalette("blue");
     setSelection(null);
     setSelectedRadiusKm(25);
+    setIsMapPickEnabled(false);
     setIsPanelExpanded(false);
     setPredictionWindow(null);
     setRecursivePredictions([]);
@@ -113,6 +115,7 @@ export function App() {
     }
 
     setSelection(null);
+    setIsMapPickEnabled(false);
     setPredictionWindow(null);
     setRecursivePredictions([]);
     setIsPanelExpanded(false);
@@ -183,8 +186,10 @@ export function App() {
               heatmapPalette={heatmapPalette}
               language={language}
               theme={theme}
+              isMapPickEnabled={isMapPickEnabled}
               onHeatmapPaletteChange={setHeatmapPalette}
               onResetUserControls={resetUserControls}
+              onMapPickEnabledChange={setIsMapPickEnabled}
               onSelectionChange={setSelection}
               radiusKm={selectedRadiusKm}
               resetVersion={resetVersion}
@@ -209,7 +214,9 @@ export function App() {
                 filters={filters}
                 heatmapPalette={heatmapPalette}
                 language={language}
+                isMapPickEnabled={isMapPickEnabled}
                 onExpandedChange={setIsPanelExpanded}
+                onMapPickEnabledChange={setIsMapPickEnabled}
                 onPredictionWindowChange={setPredictionWindow}
                 onRadiusKmChange={setSelectedRadiusKm}
                 onSelectionChange={setSelection}

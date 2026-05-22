@@ -9,6 +9,7 @@ import {
   MapContainer,
   Pane,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import {
   fetchRegionValues,
@@ -222,6 +223,63 @@ function normalizeSearchValue(value: string) {
     .trim();
 }
 
+function pointInRing(
+  longitude: number,
+  latitude: number,
+  ring: number[][],
+) {
+  let isInside = false;
+
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const [currentLongitude, currentLatitude] = ring[index];
+    const [previousLongitude, previousLatitude] = ring[previous];
+    const intersects =
+      currentLatitude > latitude !== previousLatitude > latitude &&
+      longitude <
+        ((previousLongitude - currentLongitude) * (latitude - currentLatitude)) /
+          (previousLatitude - currentLatitude) +
+          currentLongitude;
+
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
+function pointInPolygon(
+  longitude: number,
+  latitude: number,
+  coordinates: number[][][],
+) {
+  const [outerRing, ...holes] = coordinates;
+
+  if (!pointInRing(longitude, latitude, outerRing)) {
+    return false;
+  }
+
+  return !holes.some((hole) => pointInRing(longitude, latitude, hole));
+}
+
+function featureContainsPoint(
+  feature: Feature<Geometry, TurkeyProvinceProperties>,
+  longitude: number,
+  latitude: number,
+) {
+  if (feature.geometry.type === "Polygon") {
+    return pointInPolygon(longitude, latitude, feature.geometry.coordinates);
+  }
+
+  if (feature.geometry.type === "MultiPolygon") {
+    return feature.geometry.coordinates.some((polygon) =>
+      pointInPolygon(longitude, latitude, polygon),
+    );
+  }
+
+  return false;
+}
+
 function levenshteinDistance(leftValue: string, rightValue: string) {
   const left = normalizeSearchValue(leftValue);
   const right = normalizeSearchValue(rightValue);
@@ -322,6 +380,29 @@ function ResizeController({ data }: { data: TurkeyGeoJson | null }) {
       window.removeEventListener("resize", resizeMap);
     };
   }, [data, map]);
+
+  return null;
+}
+
+function CoordinatePicker({
+  enabled,
+  onMapBackgroundClick,
+  onPick,
+}: {
+  enabled: boolean;
+  onMapBackgroundClick: () => void;
+  onPick: (latitude: number, longitude: number) => void;
+}) {
+  useMapEvents({
+    click: (event) => {
+      if (enabled) {
+        onPick(event.latlng.lat, event.latlng.lng);
+        return;
+      }
+
+      onMapBackgroundClick();
+    },
+  });
 
   return null;
 }
@@ -534,9 +615,11 @@ function RequestHeatmapLayer({
 export function TurkeyMap({
   filters,
   heatmapPalette,
+  isMapPickEnabled,
   language,
   theme,
   onHeatmapPaletteChange,
+  onMapPickEnabledChange,
   onResetUserControls,
   onSelectionChange,
   radiusKm,
@@ -545,9 +628,11 @@ export function TurkeyMap({
 }: {
   filters: DemandFilters;
   heatmapPalette: HeatmapPalette;
+  isMapPickEnabled: boolean;
   language: Language;
   theme: Theme;
   onHeatmapPaletteChange: (palette: HeatmapPalette) => void;
+  onMapPickEnabledChange: (isEnabled: boolean) => void;
   onResetUserControls: () => void;
   onSelectionChange: (selection: CoordinateMatch | null) => void;
   radiusKm: number;
@@ -689,7 +774,7 @@ export function TurkeyMap({
   const selectProvince = useCallback(
     (province: { name: string; number: number }) => {
       setSelectedProvinceNumber(province.number);
-      setProvinceSearch(province.name);
+      setProvinceSearch("");
       setIsProvinceSearchOpen(false);
       onSelectionChange({
         latitude: null,
@@ -701,12 +786,25 @@ export function TurkeyMap({
     [onSelectionChange],
   );
 
+  const pickLocationOnMap = useCallback(
+    (latitude: number, longitude: number, province: { name: string; number: number }) => {
+      setSelectedProvinceNumber(province.number);
+      setProvinceSearch("");
+      setIsProvinceSearchOpen(false);
+      onMapPickEnabledChange(false);
+      onSelectionChange({
+        latitude,
+        longitude,
+        regionName: province.name,
+        provinceNumber: province.number,
+      });
+    },
+    [onMapPickEnabledChange, onSelectionChange],
+  );
+
   useEffect(() => {
     setSelectedProvinceNumber(selection?.provinceNumber ?? null);
-    if (selection?.regionName) {
-      setProvinceSearch(selection.regionName);
-    }
-  }, [selection?.provinceNumber, selection?.regionName]);
+  }, [selection?.provinceNumber]);
 
   const styleRegion = useCallback(
     (feature?: Feature<Geometry, TurkeyProvinceProperties>) => {
@@ -788,6 +886,14 @@ export function TurkeyMap({
         click: (event: LeafletMouseEvent) => {
           L.DomEvent.stopPropagation(event);
 
+          if (isMapPickEnabled) {
+            pickLocationOnMap(event.latlng.lat, event.latlng.lng, {
+              name: feature.properties.name,
+              number: feature.properties.number,
+            });
+            return;
+          }
+
           selectProvince({
             name: feature.properties.name,
             number: feature.properties.number,
@@ -801,8 +907,10 @@ export function TurkeyMap({
     },
     [
       activeMetric,
+      isMapPickEnabled,
       regionData,
       mapHeatMode,
+      pickLocationOnMap,
       selectProvince,
       selectedProvinceNumber,
       styleRegion,
@@ -820,6 +928,7 @@ export function TurkeyMap({
   function refreshData() {
     clearMapInputs();
     onResetUserControls();
+    onMapPickEnabledChange(false);
     onSelectionChange(null);
     setRefreshVersion((version) => version + 1);
   }
@@ -964,14 +1073,30 @@ export function TurkeyMap({
           zoomSnap={0.1}
           zoomControl={false}
           attributionControl={false}
-          className="leaflet-map"
+          className={isMapPickEnabled ? "leaflet-map pick-enabled" : "leaflet-map"}
         >
           <BoundsController data={geoJson} />
           <ResizeController data={geoJson} />
+          <CoordinatePicker
+            enabled={isMapPickEnabled}
+            onMapBackgroundClick={() => onSelectionChange(null)}
+            onPick={(latitude, longitude) => {
+              const matchingFeature = geoJson?.features.find((feature) =>
+                featureContainsPoint(feature, longitude, latitude),
+              );
+
+              if (matchingFeature) {
+                pickLocationOnMap(latitude, longitude, {
+                  name: matchingFeature.properties.name,
+                  number: matchingFeature.properties.number,
+                });
+              }
+            }}
+          />
           <Pane name="province-pane" style={{ zIndex: 400 }}>
             {geoJson ? (
               <LeafletGeoJSON
-                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}`}
+                key={`${regionData?.updated_at ?? "initial"}-${selectedProvinceNumber ?? "none"}-${heatmapPalette}-${theme}-${mapHeatMode}-${isMapPickEnabled ? "pick" : "select"}`}
                 data={geoJson}
                 style={styleRegion}
                 onEachFeature={onEachFeature}
