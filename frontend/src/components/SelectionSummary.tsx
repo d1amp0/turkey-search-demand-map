@@ -10,6 +10,7 @@ import { translations, translateCategory } from "../i18n";
 import type { DemandFilters } from "../types/filters";
 import type { Language } from "../i18n";
 import type { HeatmapPalette } from "../types/palette";
+import { maxPredictionHours } from "../types/prediction";
 import type { PredictionWindow, RecursivePredictionPoint } from "../types/ml";
 import type {
   CategorySearchPoint,
@@ -565,7 +566,7 @@ function aggregateTimeSeries(
   const predictionStartTime = anchorPoint ? addHours(anchorPoint.time, 1) : selectedStart;
   const predictionEndTime = points.at(-1)?.time ?? selectedRangeEnd;
   const predictionHours = Math.min(
-    24 * 30,
+    maxPredictionHours,
     Math.max(1, Math.floor((predictionEndTime - predictionStartTime) / hourMs) + 1),
   );
   const rangeFormatter = new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
@@ -1108,6 +1109,7 @@ export function SelectionSummary({
   useEffect(() => {
     if (
       !selection?.provinceNumber ||
+      timeWindow === "month" ||
       !timeChart.predictionStartTimestamp ||
       timeChart.predictionHours <= 0
     ) {
@@ -1122,9 +1124,10 @@ export function SelectionSummary({
   }, [
     onPredictionWindowChange,
     selection?.provinceNumber,
+    timeWindow,
     timeChart.predictionAnchorPoint,
     timeChart.predictionHours,
-      timeChart.predictionStartTimestamp,
+    timeChart.predictionStartTimestamp,
   ]);
 
   useEffect(() => {

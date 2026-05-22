@@ -68,7 +68,7 @@ class PredictionResponse(BaseModel):
 class RecursivePredictionRequest(BaseModel):
     province_number: int = Field(..., ge=1, le=81)
     start_timestamp: int | str
-    hours: int = Field(default=24, ge=1, le=24 * 30)
+    hours: int = Field(default=24, ge=1, le=24 * 7)
 
 
 class RecursivePredictionPoint(BaseModel):

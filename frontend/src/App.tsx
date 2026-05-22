@@ -8,6 +8,7 @@ import { heatmapPalettes } from "./types/palette";
 import type { HeatmapPalette } from "./types/palette";
 import type { CoordinateMatch } from "./types/selection";
 import type { PredictionWindow, RecursivePredictionPoint } from "./types/ml";
+import { canPredictProvince } from "./types/prediction";
 
 type Theme = "light" | "dark";
 const STATS_ONLY_QUERY = "(max-width: 1000px)";
@@ -200,7 +201,7 @@ export function App() {
         <aside className="charts-panel" aria-label={translations[language].chartsPanel}>
           {isAnalyticsReady ? (
             <Suspense fallback={<div className="summary-empty">{translations[language].loadingAnalytics}</div>}>
-              {selection?.provinceNumber ? (
+              {canPredictProvince(selection?.provinceNumber) && predictionWindow ? (
                 <PredictPanel
                   language={language}
                   predictionWindow={predictionWindow}

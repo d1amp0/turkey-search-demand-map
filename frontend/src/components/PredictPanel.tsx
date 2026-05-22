@@ -8,21 +8,7 @@ import type {
 } from "../types/ml";
 import type { CoordinateMatch } from "../types/selection";
 import type { Language } from "../i18n";
-
-const allowedPredictionProvinceNumbers = new Set([
-  1,
-  6,
-  7,
-  16,
-  21,
-  27,
-  34,
-  35,
-  38,
-  41,
-  42,
-  66,
-]);
+import { canPredictProvince } from "../types/prediction";
 
 export function PredictPanel({
   language,
@@ -41,9 +27,7 @@ export function PredictPanel({
   const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const isProvinceAllowed = selection?.provinceNumber
-    ? allowedPredictionProvinceNumbers.has(selection.provinceNumber)
-    : false;
+  const isProvinceAllowed = canPredictProvince(selection?.provinceNumber);
   const canPredict = Boolean(selection?.provinceNumber && predictionWindow && isProvinceAllowed);
 
   useEffect(() => {
