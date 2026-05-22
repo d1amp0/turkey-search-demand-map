@@ -99,7 +99,7 @@
   }
 
   .filter-trigger {
-    @apply min-w-22 max-w-40 overflow-hidden text-ellipsis whitespace-nowrap;
+    @apply w-36 overflow-hidden text-ellipsis whitespace-nowrap;
     background: var(--toggle-background);
     border-color: var(--border);
     color: var(--text);
@@ -217,7 +217,7 @@
   }
 
   .theme-toggle button {
-    @apply min-h-[30px] rounded-md border-0 px-2.5;
+    @apply min-h-[30px] min-w-16 overflow-hidden text-ellipsis whitespace-nowrap rounded-md border-0 px-2.5;
     background: var(--toggle-button);
     color: var(--muted-text);
   }
@@ -313,7 +313,7 @@
   }
 
   .refresh-button {
-    @apply min-w-[82px] flex-none;
+    @apply w-24 flex-none overflow-hidden text-ellipsis whitespace-nowrap;
   }
 
   .coordinate-search {
@@ -334,11 +334,11 @@
     @apply absolute bottom-3 left-3 z-[710] grid gap-1 rounded-md border p-[3px];
     background: var(--toggle-background);
     border-color: var(--border);
-    grid-template-columns: repeat(2, minmax(110px, 1fr));
+    grid-template-columns: repeat(2, 128px);
   }
 
   .map-mode-toggle button {
-    @apply min-h-8 border-0 px-2.5 text-xs font-semibold;
+    @apply min-h-8 overflow-hidden text-ellipsis whitespace-nowrap border-0 px-2.5 text-xs font-semibold;
     background: transparent;
     color: var(--muted-text);
   }
@@ -588,7 +588,7 @@
   }
 
   .analytics-coordinate-search button {
-    @apply self-end;
+    @apply w-20 self-end overflow-hidden text-ellipsis whitespace-nowrap;
   }
 
   .analytics-coordinate-search .map-pick-toggle {
@@ -597,6 +597,11 @@
     border-color: var(--border);
     color: var(--text);
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .analytics-coordinate-search .map-pick-toggle span,
+  .analytics-coordinate-search .map-pick-toggle em {
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
   }
 
   .analytics-coordinate-search .control-help {
@@ -619,7 +624,7 @@
   }
 
   .summary-actions button {
-    @apply min-h-7 border px-2 text-xs normal-case;
+    @apply min-h-7 w-20 overflow-hidden text-ellipsis whitespace-nowrap border px-2 text-xs normal-case;
     background: var(--toggle-background);
     border-color: var(--border);
     color: var(--text);
@@ -724,34 +729,44 @@
     grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   }
 
-  .time-window-picker > span,
-  .chart-category-picker span {
+  .time-window-picker > span {
     @apply text-xs font-semibold uppercase;
     color: var(--muted-text);
   }
 
   .chart-category-picker {
-    @apply grid items-center gap-2;
-    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    @apply grid gap-1.5 rounded-md border px-2.5 py-2;
+    background: color-mix(in srgb, var(--toggle-background) 76%, var(--card-background));
+    border-color: var(--border);
+  }
+
+  .chart-category-picker span {
+    @apply text-[11px] font-semibold uppercase leading-tight;
+    color: var(--muted-text);
   }
 
   .chart-category-picker select {
-    @apply h-9 min-w-0 rounded-md border py-0 pr-7 pl-2.5 text-[13px];
+    @apply h-9 min-w-0 rounded-md border py-0 pr-7 pl-2.5 text-[13px] font-semibold;
     background: var(--card-background);
     border-color: var(--border);
     color: var(--text);
     font: inherit;
   }
 
+  .chart-category-picker:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
   .segmented-control {
     @apply grid gap-1 rounded-md border p-[3px];
     background: var(--toggle-background);
     border-color: var(--border);
-    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   }
 
   .segmented-control button {
-    @apply min-h-8 border-0 px-2 text-xs font-semibold leading-tight;
+    @apply min-h-8 overflow-hidden text-ellipsis whitespace-nowrap border-0 px-2 text-xs font-semibold leading-tight;
     background: transparent;
     color: var(--muted-text);
   }

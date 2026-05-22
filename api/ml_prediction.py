@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from api.demand_data import get_demand_dataframe
 from api.settings import MODEL_PATH
+from api.settings import MODELS_DIR
 
 
 FEATURE_COLUMNS = [
@@ -55,6 +56,7 @@ class PredictionRequest(BaseModel):
     province_number: int = Field(..., ge=1, le=81)
     start_hour: int | None = Field(default=None, ge=0, le=23)
     predict_timestamp: int | str | None = Field(default=None)
+    category: str | None = None
 
 
 class PredictionResponse(BaseModel):
@@ -63,12 +65,14 @@ class PredictionResponse(BaseModel):
     province_number: int
     prediction_timestamp: str
     start_hour: int | None = None
+    category: str | None = None
 
 
 class RecursivePredictionRequest(BaseModel):
     province_number: int = Field(..., ge=1, le=81)
     start_timestamp: int | str
     hours: int = Field(default=24, ge=1, le=24 * 7)
+    category: str | None = None
 
 
 class RecursivePredictionPoint(BaseModel):
@@ -82,6 +86,7 @@ class RecursivePredictionResponse(BaseModel):
     province_number: int
     start_timestamp: str
     hours: int
+    category: str | None = None
 
 
 def get_model_path() -> Path:
@@ -91,6 +96,28 @@ def get_model_path() -> Path:
         return Path(configured_path).expanduser().resolve()
 
     return MODEL_PATH
+
+
+def get_prediction_model_path(kind: str, province_number: int) -> Path:
+    if kind == "category":
+        return MODELS_DIR / f"rf_category_model_{province_number}.joblib"
+
+    return MODELS_DIR / f"rf_total_model_{province_number}.joblib"
+
+
+@lru_cache(maxsize=32)
+def load_prediction_model(kind: str, province_number: int) -> Any:
+    model_path = get_prediction_model_path(kind, province_number)
+
+    if not model_path.exists():
+        raise FileNotFoundError(f"ML model file not found: {model_path}")
+
+    model = joblib.load(model_path)
+
+    if hasattr(model, "n_jobs"):
+        model.n_jobs = 1
+
+    return model
 
 
 @lru_cache(maxsize=1)
@@ -106,6 +133,15 @@ def load_model() -> Any:
         model.n_jobs = 1
 
     return model
+
+
+def _model_feature_columns(model: Any) -> list[str]:
+    feature_names = getattr(model, "feature_names_in_", None)
+
+    if feature_names is None:
+        return FEATURE_COLUMNS
+
+    return [str(feature_name) for feature_name in feature_names]
 
 
 def _prediction_to_json(value: Any) -> float | int | str | list[Any]:
@@ -179,6 +215,59 @@ def _hourly_counts_for_province(province_number: int) -> pd.DataFrame:
         .reset_index()
         .assign(count=lambda frame: frame["count"].astype(float))
     )
+
+
+@lru_cache(maxsize=81)
+def _category_hourly_counts_for_province(province_number: int) -> pd.DataFrame:
+    demand = get_demand_dataframe()
+    province_frame = demand[demand["province_number"] == province_number].copy()
+
+    if province_frame.empty:
+        raise HTTPException(status_code=404, detail="Province has no demand data")
+
+    province_frame["prediction_hour"] = province_frame["timestamp"].dt.floor("h")
+    province_frame["category"] = province_frame["category"].fillna("unknown").astype(str)
+    hourly_counts = (
+        province_frame.groupby(["prediction_hour", "category"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+        .sort_values(["prediction_hour", "category"])
+    )
+
+    all_hours = pd.date_range(
+        pd.Timestamp(hourly_counts["prediction_hour"].iloc[0]),
+        pd.Timestamp(hourly_counts["prediction_hour"].iloc[-1]),
+        freq="h",
+    )
+    categories = sorted(hourly_counts["category"].unique().tolist())
+    full_index = pd.MultiIndex.from_product(
+        [all_hours, categories],
+        names=["prediction_hour", "category"],
+    )
+
+    return (
+        hourly_counts.set_index(["prediction_hour", "category"])
+        .reindex(full_index, fill_value=0)
+        .reset_index()
+        .assign(count=lambda frame: frame["count"].astype(float))
+    )
+
+
+def _hourly_counts_for_category(province_number: int, category: str) -> pd.DataFrame:
+    category_counts = _category_hourly_counts_for_province(province_number)
+    hourly_counts = (
+        category_counts[category_counts["category"] == category]
+        .drop(columns=["category"])
+        .reset_index(drop=True)
+    )
+
+    if hourly_counts.empty:
+        raise HTTPException(
+            status_code=400,
+            detail="Selected category has no demand history in this province",
+        )
+
+    return hourly_counts
 
 
 def _target_hour_from_timestamp(timestamp: int | str) -> pd.Timestamp:
@@ -309,14 +398,74 @@ def _features_from_counts(
     }
 
 
+def _category_features_from_counts(
+    counts: list[float],
+    current_hour: pd.Timestamp,
+    category: str,
+    feature_columns: list[str],
+) -> dict[str, Any]:
+    day_of_week = int(current_hour.dayofweek)
+    category_column = f"category_{category}"
+
+    if category_column not in feature_columns:
+        raise HTTPException(
+            status_code=400,
+            detail="Selected category is not supported by this province model",
+        )
+
+    features = {
+        "count": _count_at(counts, 1),
+        "hour_sin": sin(2 * pi * current_hour.hour / 24),
+        "hour_cos": cos(2 * pi * current_hour.hour / 24),
+        "is_weekend": int(day_of_week >= 5),
+        "day_of_week_0": int(day_of_week == 0),
+        "day_of_week_1": int(day_of_week == 1),
+        "day_of_week_2": int(day_of_week == 2),
+        "day_of_week_3": int(day_of_week == 3),
+        "day_of_week_4": int(day_of_week == 4),
+        "day_of_week_5": int(day_of_week == 5),
+        "day_of_week_6": int(day_of_week == 6),
+    }
+
+    for column in feature_columns:
+        if column.startswith("category_"):
+            features[column] = int(column == category_column)
+
+    return features
+
+
+def _frame_from_features(
+    features: dict[str, Any],
+    feature_columns: list[str],
+) -> pd.DataFrame:
+    return pd.DataFrame([{column: features.get(column, 0) for column in feature_columns}])
+
+
 def build_features_for_province(
     province_number: int,
     start_hour: int | None = None,
     predict_timestamp: int | str | None = None,
+    category: str | None = None,
+    feature_columns: list[str] | None = None,
 ) -> tuple[dict[str, Any], pd.Timestamp]:
-    hourly_counts = _hourly_counts_for_province(province_number)
+    hourly_counts = (
+        _hourly_counts_for_category(province_number, category)
+        if category
+        else _hourly_counts_for_province(province_number)
+    )
     target_hour = _resolve_target_hour(hourly_counts, start_hour, predict_timestamp)
-    features = _features_from_history(hourly_counts, target_hour)
+    if category:
+        current_hour = target_hour - pd.Timedelta(hours=1)
+        history = hourly_counts[hourly_counts["prediction_hour"] <= current_hour]
+        counts = [float(value) for value in history["count"].tolist()]
+        features = _category_features_from_counts(
+            counts,
+            current_hour,
+            category,
+            feature_columns or [],
+        )
+    else:
+        features = _features_from_history(hourly_counts, target_hour)
 
     return features, target_hour
 
@@ -328,17 +477,22 @@ def predict_demand(payload: PredictionRequest) -> PredictionResponse:
             detail="Prediction is available only for selected provinces",
         )
 
+    model_kind = "category" if payload.category else "total"
+
     try:
-        model = load_model()
+        model = load_prediction_model(model_kind, payload.province_number)
     except FileNotFoundError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
+    feature_columns = _model_feature_columns(model)
     features, prediction_timestamp = build_features_for_province(
         payload.province_number,
         payload.start_hour,
         payload.predict_timestamp,
+        payload.category,
+        feature_columns,
     )
-    frame = pd.DataFrame([{column: features[column] for column in FEATURE_COLUMNS}])
+    frame = _frame_from_features(features, feature_columns)
 
     try:
         prediction = model.predict(frame)
@@ -350,10 +504,11 @@ def predict_demand(payload: PredictionRequest) -> PredictionResponse:
 
     return PredictionResponse(
         prediction=_prediction_to_json(prediction),
-        model_path=str(get_model_path()),
+        model_path=str(get_prediction_model_path(model_kind, payload.province_number)),
         province_number=payload.province_number,
         prediction_timestamp=prediction_timestamp.isoformat(),
         start_hour=payload.start_hour,
+        category=payload.category,
     )
 
 
@@ -366,12 +521,19 @@ def predict_recursive_demand(
             detail="Prediction is available only for selected provinces",
         )
 
+    model_kind = "category" if payload.category else "total"
+
     try:
-        model = load_model()
+        model = load_prediction_model(model_kind, payload.province_number)
     except FileNotFoundError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
-    hourly_counts = _hourly_counts_for_province(payload.province_number)
+    feature_columns = _model_feature_columns(model)
+    hourly_counts = (
+        _hourly_counts_for_category(payload.province_number, payload.category)
+        if payload.category
+        else _hourly_counts_for_province(payload.province_number)
+    )
     first_hour = pd.Timestamp(hourly_counts["prediction_hour"].iloc[0])
     last_hour = pd.Timestamp(hourly_counts["prediction_hour"].iloc[-1])
     start_hour = _target_hour_from_timestamp(payload.start_timestamp)
@@ -396,8 +558,17 @@ def predict_recursive_demand(
     for offset in range(payload.hours):
         target_hour = start_hour + pd.Timedelta(hours=offset)
         current_hour = target_hour - pd.Timedelta(hours=1)
-        features = _features_from_counts(counts, current_hour)
-        frame = pd.DataFrame([{column: features[column] for column in FEATURE_COLUMNS}])
+        features = (
+            _category_features_from_counts(
+                counts,
+                current_hour,
+                payload.category,
+                feature_columns,
+            )
+            if payload.category
+            else _features_from_counts(counts, current_hour)
+        )
+        frame = _frame_from_features(features, feature_columns)
 
         try:
             prediction = _prediction_to_float(model.predict(frame))
@@ -418,18 +589,27 @@ def predict_recursive_demand(
 
     return RecursivePredictionResponse(
         points=points,
-        model_path=str(get_model_path()),
+        model_path=str(get_prediction_model_path(model_kind, payload.province_number)),
         province_number=payload.province_number,
         start_timestamp=start_hour.isoformat(),
         hours=payload.hours,
+        category=payload.category,
     )
 
 
 def get_model_info() -> dict[str, Any]:
-    model_path = get_model_path()
+    total_model_paths = [
+        get_prediction_model_path("total", province_number)
+        for province_number in sorted(ALLOWED_PREDICTION_PROVINCES)
+    ]
+    category_model_paths = [
+        get_prediction_model_path("category", province_number)
+        for province_number in sorted(ALLOWED_PREDICTION_PROVINCES)
+    ]
 
     return {
-        "model_path": str(model_path),
-        "model_exists": model_path.exists(),
+        "model_path": str(MODELS_DIR),
+        "model_exists": all(model_path.exists() for model_path in total_model_paths + category_model_paths),
         "features": FEATURE_COLUMNS,
+        "available_provinces": sorted(ALLOWED_PREDICTION_PROVINCES),
     }

@@ -11,4 +11,5 @@ FULL_DEMAND_CSV_PATHS = (
     BASE_DIR / "data" / "df_with_cat.csv",
     BASE_DIR / "ml" / "df_with_cat.csv",
 )
-MODEL_PATH = BASE_DIR / "data" / "models" / "rf_model.pkl"
+MODELS_DIR = BASE_DIR / "data" / "models"
+MODEL_PATH = MODELS_DIR / "rf_model.pkl"

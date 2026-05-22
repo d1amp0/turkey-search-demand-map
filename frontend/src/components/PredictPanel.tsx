@@ -62,6 +62,7 @@ export function PredictPanel({
 
     try {
       const response = await predictDemandRecursive({
+        category: predictionWindow.category ?? null,
         hours: predictionWindow.hours,
         province_number: selection.provinceNumber,
         start_timestamp: predictionWindow.startTimestamp,

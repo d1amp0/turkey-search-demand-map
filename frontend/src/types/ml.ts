@@ -2,6 +2,7 @@ export type PredictionRequest = {
   province_number: number;
   start_hour?: number;
   predict_timestamp?: string;
+  category?: string | null;
 };
 
 export type PredictionResponse = {
@@ -10,12 +11,14 @@ export type PredictionResponse = {
   province_number: number;
   prediction_timestamp: string;
   start_hour?: number | null;
+  category?: string | null;
 };
 
 export type RecursivePredictionRequest = {
   province_number: number;
   start_timestamp: string;
   hours: number;
+  category?: string | null;
 };
 
 export type RecursivePredictionPoint = {
@@ -29,11 +32,13 @@ export type RecursivePredictionResponse = {
   province_number: number;
   start_timestamp: string;
   hours: number;
+  category?: string | null;
 };
 
 export type PredictionWindow = {
   startTimestamp: string;
   hours: number;
+  category?: string | null;
 } | null;
 
 export type ModelInfoResponse = {

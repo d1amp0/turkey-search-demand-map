@@ -1179,10 +1179,12 @@ export function SelectionSummary({
     }
 
     onPredictionWindowChange({
+      category: lineChartCategory === "all" ? null : lineChartCategory,
       hours: timeChart.predictionHours,
       startTimestamp: timeChart.predictionStartTimestamp,
     });
   }, [
+    lineChartCategory,
     onPredictionWindowChange,
     selection?.provinceNumber,
     timeWindow,
@@ -1480,7 +1482,7 @@ export function SelectionSummary({
               data={timeChart.points}
               isExpanded={isExpanded}
               language={language}
-              predictionData={provinceDemand && lineChartCategory === "all" ? recursivePredictionChart : []}
+              predictionData={provinceDemand ? recursivePredictionChart : []}
             />
           </div>
 
