@@ -24,6 +24,7 @@ export type RecursivePredictionRequest = {
 export type RecursivePredictionPoint = {
   timestamp: string;
   prediction: number;
+  category?: string | null;
 };
 
 export type RecursivePredictionResponse = {
@@ -38,7 +39,7 @@ export type RecursivePredictionResponse = {
 export type PredictionWindow = {
   startTimestamp: string;
   hours: number;
-  category?: string | null;
+  categories: Array<string | null>;
 } | null;
 
 export type ModelInfoResponse = {

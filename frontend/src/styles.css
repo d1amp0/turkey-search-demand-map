@@ -494,6 +494,11 @@
     border-color: var(--border);
   }
 
+  .interaction-lock {
+    @apply fixed inset-0 z-[2200] cursor-wait;
+    background: transparent;
+  }
+
   .predict-header {
     @apply flex items-start justify-between gap-3;
   }
@@ -745,12 +750,26 @@
     color: var(--muted-text);
   }
 
-  .chart-category-picker select {
-    @apply h-9 min-w-0 rounded-md border py-0 pr-7 pl-2.5 text-[13px] font-semibold;
+  .chart-category-checklist {
+    @apply grid max-h-40 gap-1 overflow-auto pr-1;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  }
+
+  .chart-category-checklist label {
+    @apply flex min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-[13px] font-semibold leading-tight;
     background: var(--card-background);
     border-color: var(--border);
     color: var(--text);
-    font: inherit;
+  }
+
+  .chart-category-checklist input {
+    @apply m-0 h-4 w-4 shrink-0;
+    accent-color: var(--button-background);
+  }
+
+  .chart-category-checklist label span {
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap normal-case;
+    color: var(--text);
   }
 
   .chart-category-picker:focus-within {
@@ -831,7 +850,7 @@
   }
 
   .line-chart-wrap {
-    @apply relative overflow-visible rounded-md border;
+    @apply relative grid gap-2 overflow-visible rounded-md border p-0 pb-2;
     background: var(--toggle-background);
     border-color: var(--border);
   }
@@ -849,9 +868,7 @@
   }
 
   .line-chart-legend {
-    @apply absolute top-3 left-3 z-[1] flex flex-wrap items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs;
-    background: color-mix(in srgb, var(--card-background) 86%, transparent);
-    border-color: var(--border);
+    @apply flex flex-wrap items-center gap-2 px-3 text-xs;
     color: var(--muted-text);
   }
 
@@ -865,7 +882,7 @@
   }
 
   .line-chart-legend i[data-series="prediction"] {
-    background: #f97316;
+    background: #0284c7;
   }
 
   .line-chart-tooltip {

@@ -46,8 +46,25 @@ type PredictionChartPoint = {
   prediction: number;
   time: number;
 };
+type LineChartSeries = {
+  color: string;
+  data: ChartPoint[];
+  key: string;
+  label: string;
+  predictionData: PredictionChartPoint[];
+};
 
 const pieSegmentColors = [
+  "#0284c7",
+  "#f97316",
+  "#16a34a",
+  "#dc2626",
+  "#7c3aed",
+  "#0891b2",
+  "#ca8a04",
+  "#be123c",
+];
+const lineSeriesColors = [
   "#0284c7",
   "#f97316",
   "#16a34a",
@@ -186,15 +203,15 @@ function MetricTile({
 }
 
 function MiniLineChart({
-  data,
   isExpanded,
   language,
-  predictionData = [],
+  series,
+  windowKey,
 }: {
-  data: ChartPoint[];
   isExpanded: boolean;
   language: Language;
-  predictionData?: PredictionChartPoint[];
+  series: LineChartSeries[];
+  windowKey: TimeWindowKey;
 }) {
   const t = translations[language];
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -203,9 +220,11 @@ function MiniLineChart({
     top: number;
   } | null>(null);
   const chart = useMemo(() => {
+    const actualPoints = series.flatMap((item) => item.data);
+    const predictionPoints = series.flatMap((item) => item.predictionData);
     const max = Math.max(
-      ...data.map((item) => item.searches),
-      ...predictionData.map((item) => item.prediction),
+      ...actualPoints.map((item) => item.searches),
+      ...predictionPoints.map((item) => item.prediction),
       0,
     );
     const safeMax = Math.max(max, 1);
@@ -220,61 +239,81 @@ function MiniLineChart({
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
     const allTimes = [
-      ...data.map((item) => item.time),
-      ...predictionData.map((item) => item.time),
+      ...actualPoints.map((item) => item.time),
+      ...predictionPoints.map((item) => item.time),
     ];
-    const minTime = Math.min(...allTimes);
-    const maxTime = Math.max(...allTimes);
+    const minTime = allTimes.length ? Math.min(...allTimes) : 0;
+    const maxTime = allTimes.length ? Math.max(...allTimes) : 0;
     const timeRange = Math.max(maxTime - minTime, 1);
     const xForTime = (time: number) =>
       padding.left +
       (allTimes.length === 1 ? plotWidth / 2 : ((time - minTime) / timeRange) * plotWidth);
-    const coordinates = data.map((item) => {
-      const x = xForTime(item.time);
-      const y = padding.top + plotHeight - (item.searches / safeMax) * plotHeight;
+    const chartSeries = series.map((item) => {
+      const coordinates = item.data.map((point) => {
+        const x = xForTime(point.time);
+        const y = padding.top + plotHeight - (point.searches / safeMax) * plotHeight;
+
+        return {
+          ...point,
+          x,
+          y,
+        };
+      });
+      const predictionCoordinates = item.predictionData.map((point) => {
+        const x = xForTime(point.time);
+        const y = padding.top + plotHeight - (point.prediction / safeMax) * plotHeight;
+
+        return {
+          ...point,
+          x,
+          y,
+        };
+      });
 
       return {
         ...item,
-        x,
-        y,
+        coordinates,
+        points: coordinates.map((point) => `${point.x},${point.y}`).join(" "),
+        testPoints: coordinates
+          .slice(Math.max(0, Math.floor(coordinates.length * 0.8) - 1))
+          .map((point) => `${point.x},${point.y}`)
+          .join(" "),
+        trainPoints: coordinates
+          .slice(0, Math.max(1, Math.floor(coordinates.length * 0.8)))
+          .map((point) => `${point.x},${point.y}`)
+          .join(" "),
+        predictionCoordinates,
+        predictionPoints: predictionCoordinates.map((point) => `${point.x},${point.y}`).join(" "),
       };
     });
-    const predictionCoordinates = predictionData.map((item) => {
-      const x =
-        padding.left +
-        (allTimes.length === 1 ? plotWidth / 2 : ((item.time - minTime) / timeRange) * plotWidth);
-      const y = padding.top + plotHeight - (item.prediction / safeMax) * plotHeight;
-
-      return {
-        ...item,
-        x,
-        y,
-      };
-    });
-
+    const coordinates = chartSeries.flatMap((item) => item.coordinates);
+    const predictionCoordinates = chartSeries.flatMap((item) => item.predictionCoordinates);
+    const primarySeries = chartSeries.find((item) => item.coordinates.length);
+    const hoverCoordinates = primarySeries?.coordinates ?? [];
+    const total = actualPoints.reduce((sum, item) => sum + item.searches, 0);
     return {
+      chartSeries,
       coordinates,
       height,
+      hoverCoordinates,
       max,
       padding,
       plotHeight,
       plotWidth,
-      points: coordinates.map((item) => `${item.x},${item.y}`).join(" "),
-      predictionPoints: predictionCoordinates.map((item) => `${item.x},${item.y}`).join(" "),
       predictionCoordinates,
-      total: data.reduce((sum, item) => sum + item.searches, 0),
+      total,
       width,
     };
-  }, [data, isExpanded, predictionData]);
+  }, [isExpanded, series]);
 
-  if (!data.length) {
+  if (!series.some((item) => item.data.length)) {
     return <p className="chart-empty">{t.noRequests}</p>;
   }
 
-  const firstLabel = data[0]?.label ?? "";
-  const lastLabel = data.at(-1)?.label ?? "";
+  const firstLabel = chart.coordinates[0]?.label ?? "";
+  const lastLabel = chart.coordinates.at(-1)?.label ?? "";
   const yTicks = getYAxisTicks(chart.max);
-  const hoveredPoint = hoveredIndex === null ? null : chart.coordinates[hoveredIndex];
+  const hoveredPoint = hoveredIndex === null ? null : chart.hoverCoordinates[hoveredIndex];
   const hasPredictionLine = chart.predictionCoordinates.length > 0;
 
   function getNearestPoint(clientX: number, target: SVGSVGElement) {
@@ -283,7 +322,7 @@ function MiniLineChart({
     let nearestIndex = 0;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
-    chart.coordinates.forEach((point, index) => {
+    chart.hoverCoordinates.forEach((point, index) => {
       const distance = Math.abs(point.x - viewBoxX);
 
       if (distance < nearestDistance) {
@@ -297,7 +336,12 @@ function MiniLineChart({
 
   function updateHoveredPoint(clientX: number, target: SVGSVGElement) {
     const nextIndex = getNearestPoint(clientX, target);
-    const nextPoint = chart.coordinates[nextIndex];
+    const nextPoint = chart.hoverCoordinates[nextIndex];
+
+    if (!nextPoint) {
+      return;
+    }
+
     const bounds = target.getBoundingClientRect();
     const left = (nextPoint.x / chart.width) * bounds.width;
     const top = (nextPoint.y / chart.height) * bounds.height;
@@ -314,12 +358,6 @@ function MiniLineChart({
       <div className="line-chart-metric">
         <span>{t.totalRequests}</span>
         <strong>{formatInteger(chart.total)}</strong>
-      </div>
-      <div className="line-chart-legend">
-        <span><i data-series="actual" />{t.requests}</span>
-        {hasPredictionLine ? (
-          <span><i data-series="prediction" />{t.predictedRequests}</span>
-        ) : null}
       </div>
       <svg
         className="mini-line-chart"
@@ -366,34 +404,69 @@ function MiniLineChart({
           y1={chart.padding.top + chart.plotHeight}
           y2={chart.padding.top + chart.plotHeight}
         />
-        <polyline className="actual-line" points={chart.points} />
-        {hasPredictionLine ? (
-          <polyline className="prediction-line" points={chart.predictionPoints}>
-            <title>{t.predictedRequests}</title>
-          </polyline>
-        ) : null}
-        {chart.predictionCoordinates.map((item, index) => (
-          <circle
-            className="prediction-chart-point"
-            cx={item.x}
-            cy={item.y}
-            key={`${item.key}-${index}`}
-            r={predictionData.length > 24 && index % 2 !== 0 ? 1.8 : 2.8}
-          >
-            <title>{`${item.label}: ${formatInteger(item.prediction)} ${t.predictedRequests.toLowerCase()}`}</title>
-          </circle>
-        ))}
-        {chart.coordinates.map((item, index) => (
-          <circle
-            className="chart-point"
-            cx={item.x}
-            cy={item.y}
-            key={`${item.label}-${index}`}
-            r={data.length > 24 && index % 2 !== 0 ? 2 : 3}
-          >
-            <title>{`${item.label}: ${formatInteger(item.searches)}`}</title>
-          </circle>
-        ))}
+        {windowKey === "all"
+          ? chart.chartSeries.flatMap((item) => [
+              <polyline
+                className="actual-line"
+                key={`${item.key}-train`}
+                points={item.trainPoints}
+                style={{ stroke: "#0284c7" }}
+              />,
+              <polyline
+                className="actual-line"
+                key={`${item.key}-test`}
+                points={item.testPoints}
+                style={{ stroke: "#16a34a" }}
+              />,
+            ])
+          : chart.chartSeries.map((item) => (
+              <polyline
+                className="actual-line"
+                key={`${item.key}-actual`}
+                points={item.points}
+                style={{ stroke: item.color }}
+              />
+            ))}
+        {chart.chartSeries.map((item) =>
+          item.predictionPoints ? (
+            <polyline
+              className="prediction-line"
+              key={`${item.key}-prediction`}
+              points={item.predictionPoints}
+              style={{ stroke: "#f97316" }}
+            >
+              <title>{`${item.label}: ${t.predictedRequests}`}</title>
+            </polyline>
+          ) : null,
+        )}
+        {chart.chartSeries.flatMap((seriesItem) =>
+          seriesItem.predictionCoordinates.map((item, index) => (
+            <circle
+              className="prediction-chart-point"
+              cx={item.x}
+              cy={item.y}
+              key={`${seriesItem.key}-${item.key}-${index}`}
+              r={seriesItem.predictionCoordinates.length > 24 && index % 2 !== 0 ? 1.8 : 2.8}
+              style={{ stroke: "#f97316" }}
+            >
+              <title>{`${seriesItem.label}: ${item.label}: ${formatInteger(item.prediction)} ${t.predictedRequests.toLowerCase()}`}</title>
+            </circle>
+          )),
+        )}
+        {chart.chartSeries.flatMap((seriesItem) =>
+          seriesItem.coordinates.map((item, index) => (
+            <circle
+              className="chart-point"
+              cx={item.x}
+              cy={item.y}
+              key={`${seriesItem.key}-${item.label}-${index}`}
+              r={seriesItem.coordinates.length > 24 && index % 2 !== 0 ? 2 : 3}
+              style={{ stroke: seriesItem.color }}
+            >
+              <title>{`${seriesItem.label}: ${item.label}: ${formatInteger(item.searches)}`}</title>
+            </circle>
+          )),
+        )}
         {hoveredPoint ? (
           <>
             <line
@@ -426,6 +499,24 @@ function MiniLineChart({
           {lastLabel}
         </text>
       </svg>
+      <div className="line-chart-legend">
+        {windowKey === "all" ? (
+          <>
+            <span><i style={{ background: "#0284c7" }} />{t.train}</span>
+            <span><i style={{ background: "#16a34a" }} />{t.test}</span>
+          </>
+        ) : (
+          chart.chartSeries.map((item) => (
+            <span key={item.key}>
+              <i style={{ background: item.color }} />
+              {item.label}
+            </span>
+          ))
+        )}
+        {hasPredictionLine ? (
+          <span><i data-series="prediction" />{t.predictedRequests}</span>
+        ) : null}
+      </div>
       {hoveredPoint && tooltipPosition ? (
         <div
           className="line-chart-tooltip"
@@ -506,6 +597,8 @@ function aggregateTimeSeries(
       predictionStartTimestamp: null as string | null,
       predictionHours: 0,
       rangeLabel: "",
+      selectedStartTime: 0,
+      selectedStartTimestamp: null as string | null,
     };
   }
 
@@ -562,12 +655,11 @@ function aggregateTimeSeries(
     searches,
     time: dateFromBucketKey(key, windowKey).getTime(),
   }));
-  const anchorPoint = points[0] ?? null;
+  const anchorPoint = points.at(-1) ?? null;
   const predictionStartTime = anchorPoint ? addHours(anchorPoint.time, 1) : selectedStart;
-  const predictionEndTime = points.at(-1)?.time ?? selectedRangeEnd;
   const predictionHours = Math.min(
     maxPredictionHours,
-    Math.max(1, Math.floor((predictionEndTime - predictionStartTime) / hourMs) + 1),
+    Math.max(1, Math.floor(durationMs / hourMs)),
   );
   const rangeFormatter = new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
     day: "2-digit",
@@ -583,7 +675,35 @@ function aggregateTimeSeries(
     predictionStartTimestamp: formatLocalHourTimestamp(predictionStartTime),
     predictionHours,
     rangeLabel: `${rangeFormatter.format(new Date(selectedStart))} - ${rangeFormatter.format(new Date(selectedRangeEnd))}`,
+    selectedStartTime: selectedStart,
+    selectedStartTimestamp: formatLocalHourTimestamp(selectedStart),
   };
+}
+
+function timeOffsetForStart(
+  data: TimeSearchPoint[],
+  windowKey: TimeWindowKey,
+  selectedStartTime: number,
+) {
+  if (!data.length) {
+    return 0;
+  }
+
+  const sorted = [...data].sort((left, right) =>
+    left.timestamp.localeCompare(right.timestamp),
+  );
+  const windowOption =
+    timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[0];
+  const startTime = new Date(sorted[0].timestamp).getTime();
+  const endTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
+  const hourMs = 60 * 60 * 1000;
+  const durationMs =
+    windowOption.durationHours === null
+      ? Math.max(endTime - startTime + hourMs, hourMs)
+      : windowOption.durationHours * hourMs;
+  const maxOffset = Math.max(0, Math.ceil((endTime - startTime - durationMs) / hourMs));
+
+  return clamp(Math.round((selectedStartTime - startTime) / hourMs), 0, maxOffset);
 }
 
 function aggregateRecursivePredictionSeries(
@@ -935,42 +1055,6 @@ function OrganizationList({
   );
 }
 
-function hasEnoughDailyRequests(data: DemandOverviewResponse | ProvinceDemandResponse | null) {
-  if (!data?.daily_searches.length) {
-    return false;
-  }
-
-  const sortedDays = data.daily_searches
-    .map((item) => ({
-      date: item.date,
-      searches: item.searches,
-      time: new Date(item.date).getTime(),
-    }))
-    .sort((left, right) => left.time - right.time);
-  const startTime = sortedDays[0]?.time;
-  const endTime = sortedDays.at(-1)?.time;
-
-  if (startTime === undefined || endTime === undefined) {
-    return false;
-  }
-
-  const searchesByDate = new Map(sortedDays.map((item) => [item.date, item.searches]));
-
-  for (
-    let currentTime = startTime;
-    currentTime <= endTime;
-    currentTime += 24 * 60 * 60 * 1000
-  ) {
-    const dateKey = new Date(currentTime).toISOString().slice(0, 10);
-
-    if ((searchesByDate.get(dateKey) ?? 0) < 5) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function getSummary(data: DemandOverviewResponse | ProvinceDemandResponse | null) {
   return data?.summary ?? null;
 }
@@ -988,6 +1072,7 @@ export function SelectionSummary({
   onSelectionChange,
   predictionData,
   radiusKm,
+  resetVersion,
   selection,
 }: {
   filters: DemandFilters;
@@ -1002,6 +1087,7 @@ export function SelectionSummary({
   onSelectionChange: (selection: CoordinateMatch | null) => void;
   predictionData: RecursivePredictionPoint[];
   radiusKm: number;
+  resetVersion: number;
   selection: CoordinateMatch | null;
 }) {
   const t = translations[language];
@@ -1019,9 +1105,10 @@ export function SelectionSummary({
   const [radiusSummary, setRadiusSummary] = useState<RadiusSummaryResponse | null>(null);
   const [radiusError, setRadiusError] = useState<string | null>(null);
   const [isRadiusLoading, setIsRadiusLoading] = useState(false);
-  const [lineChartCategory, setLineChartCategory] = useState("all");
-  const [lineChartData, setLineChartData] =
-    useState<DemandOverviewResponse | ProvinceDemandResponse | null>(null);
+  const [selectedChartCategories, setSelectedChartCategories] = useState<string[]>(["all"]);
+  const [lineChartDataByCategory, setLineChartDataByCategory] =
+    useState<Record<string, DemandOverviewResponse | ProvinceDemandResponse>>({});
+  const [isRadiusInputFocused, setIsRadiusInputFocused] = useState(false);
 
   useEffect(() => {
     void fetchTurkeyGeoJson()
@@ -1074,17 +1161,29 @@ export function SelectionSummary({
   const activeData = provinceDemand ?? overview;
   const summary = getSummary(activeData);
   const categoryBreakdown = activeData?.category_breakdown ?? [];
-  const lineChartActiveData = lineChartCategory === "all" ? activeData : lineChartData;
+  const primaryChartCategory = selectedChartCategories[0] ?? "all";
+  const lineChartActiveData =
+    primaryChartCategory === "all"
+      ? activeData
+      : lineChartDataByCategory[primaryChartCategory] ?? null;
+  const chartCategories = useMemo(
+    () => selectedChartCategories.length ? selectedChartCategories : ["all"],
+    [selectedChartCategories],
+  );
+  const chartDataItems = useMemo(
+    () => chartCategories.map((category) => ({
+      category,
+      data: category === "all" ? activeData : lineChartDataByCategory[category] ?? null,
+    })),
+    [activeData, chartCategories, lineChartDataByCategory],
+  );
   const timeSeries = useMemo(
     () => lineChartActiveData?.time_series ?? [],
     [lineChartActiveData?.time_series],
   );
   const hourlyDistribution = activeData?.hourly_distribution ?? [];
   const topOrganizations = (activeData?.top_organizations ?? []).slice(0, 5);
-  const canShowDailyRequestChart = hasEnoughDailyRequests(lineChartActiveData);
-  const availableTimeWindowOptions = canShowDailyRequestChart
-    ? timeWindowOptions
-    : timeWindowOptions.filter((option) => option.key !== "day");
+  const availableTimeWindowOptions = timeWindowOptions;
   const topCategory = categoryBreakdown[0];
   const peakHour = hourlyDistribution.reduce<HourlySearchPoint | null>(
     (bestHour, hour) => !bestHour || hour.searches > bestHour.searches ? hour : bestHour,
@@ -1094,16 +1193,7 @@ export function SelectionSummary({
     () => aggregateTimeSeries(timeSeries, language, timeWindow, timeOffset),
     [language, timeOffset, timeSeries, timeWindow],
   );
-  const recursivePredictionChart = useMemo(
-    () =>
-      aggregateRecursivePredictionSeries(
-        predictionData,
-        language,
-        timeWindow,
-        timeChart.predictionAnchorPoint,
-      ),
-    [language, predictionData, timeChart.predictionAnchorPoint, timeWindow],
-  );
+  const isTimelineAtEnd = timeWindow === "all" || timeOffset >= timeChart.maxOffset;
   const hasInsufficientProvinceData = Boolean(provinceDemand && !provinceDemand.summary);
   const title = provinceDemand?.name ?? t.turkeyOverview;
   const subtitle = provinceDemand
@@ -1113,47 +1203,46 @@ export function SelectionSummary({
   const selectionLongitude = selection?.longitude ?? null;
 
   useEffect(() => {
-    if (!canShowDailyRequestChart && timeWindow === "day") {
-      setTimeWindow("week");
-      setTimeOffset(0);
-    }
-  }, [canShowDailyRequestChart, timeWindow]);
-
-  useEffect(() => {
     setTimeOffset(0);
-  }, [activeData?.updated_at, selection?.provinceNumber, timeWindow]);
+  }, [activeData?.updated_at, selection?.provinceNumber]);
 
   useEffect(() => {
-    setLineChartCategory("all");
-    setLineChartData(null);
+    setSelectedChartCategories(["all"]);
+    setLineChartDataByCategory({});
   }, [activeData?.updated_at, filters, selection?.provinceNumber]);
 
   useEffect(() => {
-    if (lineChartCategory === "all") {
-      setLineChartData(null);
+    const categoryRequests = selectedChartCategories.filter((category) => category !== "all");
+
+    if (!categoryRequests.length) {
+      setLineChartDataByCategory({});
       return undefined;
     }
 
     let isActive = true;
-    const nextFilters = {
-      ...filters,
-      categories: [lineChartCategory],
-    };
 
-    const request = selection?.provinceNumber
-      ? fetchProvinceDemand(selection.provinceNumber, nextFilters)
-      : fetchDemandOverview(nextFilters);
+    void Promise.all(
+      categoryRequests.map(async (category) => {
+        const nextFilters = {
+          ...filters,
+          categories: [category],
+        };
+        const data = selection?.provinceNumber
+          ? await fetchProvinceDemand(selection.provinceNumber, nextFilters)
+          : await fetchDemandOverview(nextFilters);
 
-    void request
-      .then((nextLineChartData) => {
+        return [category, data] as const;
+      }),
+    )
+      .then((entries) => {
         if (isActive) {
-          setLineChartData(nextLineChartData);
+          setLineChartDataByCategory(Object.fromEntries(entries));
           setError(null);
         }
       })
       .catch((loadError) => {
         if (isActive) {
-          setLineChartData(null);
+          setLineChartDataByCategory({});
           setError(loadError instanceof Error ? loadError.message : t.failedToLoad);
         }
       });
@@ -1161,17 +1250,18 @@ export function SelectionSummary({
     return () => {
       isActive = false;
     };
-  }, [filters, lineChartCategory, selection?.provinceNumber, t.failedToLoad]);
+  }, [filters, selectedChartCategories, selection?.provinceNumber, t.failedToLoad]);
 
   useEffect(() => {
     setTimeOffset(0);
-  }, [lineChartCategory]);
+  }, [selectedChartCategories]);
 
   useEffect(() => {
     if (
       !selection?.provinceNumber ||
-      timeWindow === "month" ||
+      (timeWindow !== "day" && timeWindow !== "week") ||
       !timeChart.predictionStartTimestamp ||
+      !timeChart.selectedStartTimestamp ||
       timeChart.predictionHours <= 0
     ) {
       onPredictionWindowChange(null);
@@ -1179,18 +1269,22 @@ export function SelectionSummary({
     }
 
     onPredictionWindowChange({
-      category: lineChartCategory === "all" ? null : lineChartCategory,
+      categories: chartCategories.map((category) => category === "all" ? null : category),
       hours: timeChart.predictionHours,
-      startTimestamp: timeChart.predictionStartTimestamp,
+      startTimestamp: isTimelineAtEnd
+        ? timeChart.predictionStartTimestamp
+        : timeChart.selectedStartTimestamp,
     });
   }, [
-    lineChartCategory,
+    chartCategories,
+    isTimelineAtEnd,
     onPredictionWindowChange,
     selection?.provinceNumber,
     timeWindow,
     timeChart.predictionAnchorPoint,
     timeChart.predictionHours,
     timeChart.predictionStartTimestamp,
+    timeChart.selectedStartTimestamp,
   ]);
 
   useEffect(() => {
@@ -1201,6 +1295,10 @@ export function SelectionSummary({
   }, [selectionLatitude, selectionLongitude]);
 
   useEffect(() => {
+    if (isRadiusInputFocused) {
+      return;
+    }
+
     const nextRadiusInput = String(radiusKm);
 
     setRadiusInput((currentRadiusInput) =>
@@ -1208,14 +1306,20 @@ export function SelectionSummary({
         ? currentRadiusInput
       : nextRadiusInput,
     );
-  }, [radiusKm]);
+  }, [isRadiusInputFocused, radiusKm]);
 
   useEffect(() => {
+    setIsRadiusInputFocused(false);
+    setRadiusInput(String(radiusKm));
+    setRadiusError(null);
+  }, [radiusKm, resetVersion]);
+
+  function commitRadiusInput() {
     const nextRadiusKm = Number(radiusInput.replace(",", "."));
 
     if (!Number.isFinite(nextRadiusKm) || nextRadiusKm <= 0) {
       setRadiusError(radiusInput.trim() ? t.enterValidRadius : null);
-      return;
+      return false;
     }
 
     setRadiusError(null);
@@ -1223,7 +1327,9 @@ export function SelectionSummary({
     if (nextRadiusKm !== radiusKm) {
       onRadiusKmChange(nextRadiusKm);
     }
-  }, [onRadiusKmChange, radiusInput, radiusKm, t.enterValidRadius]);
+
+    return true;
+  }
 
   useEffect(() => {
     if (selectionLatitude === null || selectionLongitude === null) {
@@ -1313,12 +1419,38 @@ export function SelectionSummary({
     }
 
     setCoordinateError(null);
-    onRadiusKmChange(nextRadiusKm);
+    commitRadiusInput();
     onSelectionChange({
       latitude,
       longitude,
       regionName: matchingFeature.properties.name,
       provinceNumber: matchingFeature.properties.number,
+    });
+  }
+
+  function updateTimeWindow(nextWindow: TimeWindowKey) {
+    setTimeWindow(nextWindow);
+    setTimeOffset(timeOffsetForStart(timeSeries, nextWindow, timeChart.selectedStartTime));
+  }
+
+  function toggleChartCategory(category: string, isChecked: boolean) {
+    setSelectedChartCategories((currentCategories) => {
+      if (category === "all") {
+        if (isChecked) {
+          return ["all"];
+        }
+
+        const nextCategories = currentCategories.filter((item) => item !== "all");
+
+        return nextCategories.length ? nextCategories : ["all"];
+      }
+
+      const withoutAll = currentCategories.filter((item) => item !== "all");
+      const nextCategories = isChecked
+        ? [...withoutAll, category]
+        : withoutAll.filter((item) => item !== category);
+
+      return nextCategories.length ? nextCategories : ["all"];
     });
   }
 
@@ -1380,10 +1512,15 @@ export function SelectionSummary({
                 inputMode="decimal"
                 type="text"
                 value={radiusInput}
+                onBlur={() => {
+                  setIsRadiusInputFocused(false);
+                  commitRadiusInput();
+                }}
                 onChange={(event) => {
                   setRadiusInput(event.target.value);
                   setRadiusSummary(null);
                 }}
+                onFocus={() => setIsRadiusInputFocused(true)}
               />
             </label>
             <button
@@ -1439,35 +1576,38 @@ export function SelectionSummary({
                       className={timeWindow === option.key ? "active" : ""}
                       key={option.key}
                       type="button"
-                      onClick={() => {
-                        setTimeWindow(option.key);
-                        setTimeOffset(0);
-                      }}
+                      onClick={() => updateTimeWindow(option.key)}
                     >
                       {t[option.labelKey]}
                     </button>
                   ))}
                 </div>
               </div>
-              <label className="chart-category-picker">
+              <div className="chart-category-picker">
                 <span>{t.category}</span>
-                <select
-                  value={lineChartCategory}
-                  onChange={(event) => setLineChartCategory(event.target.value)}
-                >
-                  <option value="all">{t.allCategories}</option>
+                <div className="chart-category-checklist">
+                  <label>
+                    <input
+                      checked={selectedChartCategories.includes("all")}
+                      onChange={(event) => toggleChartCategory("all", event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>{t.allCategories}</span>
+                  </label>
                   {categoryBreakdown.map((item) => (
-                    <option key={item.category} value={item.category}>
-                      {translateCategory(item.category, language)}
-                    </option>
+                    <label key={item.category}>
+                      <input
+                        checked={selectedChartCategories.includes(item.category)}
+                        onChange={(event) =>
+                          toggleChartCategory(item.category, event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      <span>{translateCategory(item.category, language)}</span>
+                    </label>
                   ))}
-                </select>
-              </label>
-              {!canShowDailyRequestChart ? (
-                <p className="chart-note">
-                  {t.dayViewHidden}
-                </p>
-              ) : null}
+                </div>
+              </div>
               {timeWindow !== "all" ? (
                 <TimeWindowSlider
                   max={timeChart.maxOffset}
@@ -1479,10 +1619,34 @@ export function SelectionSummary({
               ) : null}
             </div>
             <MiniLineChart
-              data={timeChart.points}
               isExpanded={isExpanded}
               language={language}
-              predictionData={provinceDemand ? recursivePredictionChart : []}
+              series={chartDataItems.map((item, index) => {
+                const itemTimeChart = aggregateTimeSeries(
+                  item.data?.time_series ?? [],
+                  language,
+                  timeWindow,
+                  timeOffset,
+                );
+                const predictionCategory = item.category === "all" ? null : item.category;
+                const itemPredictionChart = aggregateRecursivePredictionSeries(
+                  predictionData.filter((point) => (point.category ?? null) === predictionCategory),
+                  language,
+                  timeWindow,
+                  isTimelineAtEnd ? itemTimeChart.predictionAnchorPoint : null,
+                );
+
+                return {
+                  color: lineSeriesColors[index % lineSeriesColors.length],
+                  data: itemTimeChart.points,
+                  key: item.category,
+                  label: item.category === "all"
+                    ? t.allCategories
+                    : translateCategory(item.category, language),
+                  predictionData: provinceDemand ? itemPredictionChart : [],
+                };
+              })}
+              windowKey={timeWindow}
             />
           </div>
 

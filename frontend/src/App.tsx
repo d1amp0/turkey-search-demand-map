@@ -58,6 +58,7 @@ export function App() {
   const [isAnalyticsReady, setIsAnalyticsReady] = useState(false);
   const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(null);
   const [recursivePredictions, setRecursivePredictions] = useState<RecursivePredictionPoint[]>([]);
+  const [isPredictionLoading, setIsPredictionLoading] = useState(false);
   const [selectedRadiusKm, setSelectedRadiusKm] = useState(25);
   const [isMapPickEnabled, setIsMapPickEnabled] = useState(false);
   const isStatsOnlyLayout = useMediaQuery(STATS_ONLY_QUERY);
@@ -111,6 +112,12 @@ export function App() {
   }, [resetVersion, selection?.provinceNumber]);
 
   useEffect(() => {
+    if (!predictionWindow) {
+      setRecursivePredictions([]);
+    }
+  }, [predictionWindow]);
+
+  useEffect(() => {
     if (!isStatsOnlyLayout) {
       return;
     }
@@ -125,6 +132,7 @@ export function App() {
   return (
     <main
       className="app-shell"
+      data-prediction-loading={isPredictionLoading ? "true" : "false"}
       data-theme={theme}
       style={{ "--accent": heatmapPalettes[heatmapPalette].accent } as React.CSSProperties}
     >
@@ -208,6 +216,7 @@ export function App() {
                   resetVersion={resetVersion}
                   selection={selection}
                   onPredictionsChange={setRecursivePredictions}
+                  onPredictionLoadingChange={setIsPredictionLoading}
                 />
               ) : null}
               <SelectionSummary
@@ -223,6 +232,7 @@ export function App() {
                 onSelectionChange={setSelection}
                 predictionData={recursivePredictions}
                 radiusKm={selectedRadiusKm}
+                resetVersion={resetVersion}
                 selection={selection}
               />
             </Suspense>
@@ -231,6 +241,9 @@ export function App() {
           )}
         </aside>
       </section>
+      {isPredictionLoading ? (
+        <div className="interaction-lock" aria-hidden="true" />
+      ) : null}
     </main>
   );
 }

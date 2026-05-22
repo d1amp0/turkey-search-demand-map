@@ -16,12 +16,14 @@ export function PredictPanel({
   resetVersion,
   selection,
   onPredictionsChange,
+  onPredictionLoadingChange,
 }: {
   language: Language;
   predictionWindow: PredictionWindow;
   resetVersion: number;
   selection: CoordinateMatch | null;
   onPredictionsChange: (points: RecursivePredictionPoint[]) => void;
+  onPredictionLoadingChange: (isLoading: boolean) => void;
 }) {
   const t = translations[language];
   const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
@@ -43,6 +45,8 @@ export function PredictPanel({
     onPredictionsChange([]);
   }, [onPredictionsChange, predictionWindow, resetVersion, selection?.provinceNumber]);
 
+  useEffect(() => () => onPredictionLoadingChange(false), [onPredictionLoadingChange]);
+
   const modelStatus = useMemo(() => {
     if (!modelInfo) {
       return t.checkingModel;
@@ -56,22 +60,39 @@ export function PredictPanel({
       return;
     }
 
+    const provinceNumber = selection.provinceNumber;
+
     setError(null);
     onPredictionsChange([]);
     setIsLoading(true);
+    onPredictionLoadingChange(true);
 
     try {
-      const response = await predictDemandRecursive({
-        category: predictionWindow.category ?? null,
-        hours: predictionWindow.hours,
-        province_number: selection.provinceNumber,
-        start_timestamp: predictionWindow.startTimestamp,
-      });
-      onPredictionsChange(response.points);
+      const categories = predictionWindow.categories.length
+        ? predictionWindow.categories
+        : [null];
+      const responses = await Promise.all(
+        categories.map(async (category) => {
+          const response = await predictDemandRecursive({
+            category,
+            hours: predictionWindow.hours,
+            province_number: provinceNumber,
+            start_timestamp: predictionWindow.startTimestamp,
+          });
+
+          return response.points.map((point) => ({
+            ...point,
+            category,
+          }));
+        }),
+      );
+
+      onPredictionsChange(responses.flat());
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t.predictionFailed);
     } finally {
       setIsLoading(false);
+      onPredictionLoadingChange(false);
     }
   }
 
