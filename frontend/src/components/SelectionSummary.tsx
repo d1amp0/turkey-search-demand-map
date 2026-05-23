@@ -746,9 +746,13 @@ function aggregateTimeSeries(
     isTimelineAtEnd = overrideRange.isTimelineAtEnd;
     durationMs = actualEndLimit - selectedStart;
   } else {
-    const startDate = new Date(sorted[0].timestamp);
-    startDate.setHours(0, 0, 0, 0);
-    const startTime = startDate.getTime();
+    const actualDataStartTime = new Date(sorted[0].timestamp).getTime();
+    let startTime = actualDataStartTime;
+    if (windowKey === "week" || windowKey === "month") {
+      const startDate = new Date(actualDataStartTime);
+      startDate.setHours(0, 0, 0, 0);
+      startTime = startDate.getTime();
+    }
     let endTime = actualDataEndTime;
     if (windowKey === "week" || windowKey === "month") {
       const endDate = new Date(actualDataEndTime);
@@ -869,9 +873,13 @@ function timeOffsetForStart(
   );
   const windowOption =
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[0];
-  const startDate = new Date(sorted[0].timestamp);
-  startDate.setHours(0, 0, 0, 0);
-  const startTime = startDate.getTime();
+  const actualDataStartTime = new Date(sorted[0].timestamp).getTime();
+  let startTime = actualDataStartTime;
+  if (windowKey === "week" || windowKey === "month") {
+    const startDate = new Date(actualDataStartTime);
+    startDate.setHours(0, 0, 0, 0);
+    startTime = startDate.getTime();
+  }
   const actualDataEndTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
   let endTime = actualDataEndTime;
   if (windowKey === "week" || windowKey === "month") {
