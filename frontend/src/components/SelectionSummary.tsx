@@ -725,6 +725,13 @@ function aggregateTimeSeries(
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
   const hourMs = 60 * 60 * 1000;
 
+  const sorted = data.length
+    ? [...data].sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+    : [];
+  const actualDataEndTime = sorted.length
+    ? new Date(sorted.at(-1)!.timestamp).getTime()
+    : 0;
+
   let selectedStart: number;
   let actualEndLimit: number;
   let selectedRangeEnd: number;
@@ -739,15 +746,15 @@ function aggregateTimeSeries(
     isTimelineAtEnd = overrideRange.isTimelineAtEnd;
     durationMs = actualEndLimit - selectedStart;
   } else {
-    const sorted = [...data].sort((left, right) =>
-      left.timestamp.localeCompare(right.timestamp),
-    );
     const startDate = new Date(sorted[0].timestamp);
     startDate.setHours(0, 0, 0, 0);
     const startTime = startDate.getTime();
-    const endDate = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp);
-    endDate.setHours(23, 59, 59, 999);
-    const endTime = endDate.getTime();
+    let endTime = actualDataEndTime;
+    if (windowKey === "week" || windowKey === "month") {
+      const endDate = new Date(actualDataEndTime);
+      endDate.setHours(23, 59, 59, 999);
+      endTime = endDate.getTime();
+    }
     durationMs =
       windowOption.durationHours === null
         ? Math.max(endTime - startTime + hourMs, hourMs)
@@ -823,7 +830,7 @@ function aggregateTimeSeries(
   const anchorKey = bucketKeyForTimestamp(new Date(anchorTime), windowKey);
   const anchorPoint = points.find((point) => point.key === anchorKey) ?? points.at(-1) ?? null;
 
-  const predictionStartTime = selectedRangeEnd + hourMs;
+  const predictionStartTime = isTimelineAtEnd ? actualDataEndTime + hourMs : selectedRangeEnd + hourMs;
 
   const rangeFormatter = new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
     day: "2-digit",
@@ -865,9 +872,13 @@ function timeOffsetForStart(
   const startDate = new Date(sorted[0].timestamp);
   startDate.setHours(0, 0, 0, 0);
   const startTime = startDate.getTime();
-  const endDate = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp);
-  endDate.setHours(23, 59, 59, 999);
-  const endTime = endDate.getTime();
+  const actualDataEndTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
+  let endTime = actualDataEndTime;
+  if (windowKey === "week" || windowKey === "month") {
+    const endDate = new Date(actualDataEndTime);
+    endDate.setHours(23, 59, 59, 999);
+    endTime = endDate.getTime();
+  }
   const hourMs = 60 * 60 * 1000;
   const durationMs =
     windowOption.durationHours === null
