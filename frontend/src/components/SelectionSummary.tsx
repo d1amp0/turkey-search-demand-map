@@ -644,8 +644,11 @@ function TimeWindowSlider({
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
   const durationHours = windowOption.durationHours ?? 24 * 30;
   const handleWidthPercent = clamp((durationHours / (24 * 30)) * 100, 10, 42);
-  const safeValue = clamp(value, 0, max);
-  const leftPercent = max > 0 ? (safeValue / max) * (100 - handleWidthPercent) : 0;
+  const isDaily = windowKey === "week" || windowKey === "month";
+  const step = isDaily ? 24 : 1;
+  const sliderMax = isDaily ? Math.floor(max / 24) * 24 : max;
+  const safeValue = clamp(isDaily ? Math.round(value / 24) * 24 : value, 0, sliderMax);
+  const leftPercent = sliderMax > 0 ? (safeValue / sliderMax) * (100 - handleWidthPercent) : 0;
 
   return (
     <div className="time-window-control">
@@ -673,10 +676,10 @@ function TimeWindowSlider({
         </div>
         <input
           aria-label={t.window}
-          max={max}
+          max={sliderMax}
           min={0}
           onChange={(event) => onChange(Number(event.currentTarget.value))}
-          step={1}
+          step={step}
           type="range"
           value={safeValue}
         />
@@ -746,11 +749,17 @@ function aggregateTimeSeries(
         ? Math.max(endTime - startTime + hourMs, hourMs)
         : windowOption.durationHours * hourMs;
     maxOffset = Math.max(0, Math.ceil((endTime - startTime - durationMs) / hourMs));
-    const safeOffset = Math.min(offset, maxOffset);
+    let safeOffset = Math.min(offset, maxOffset);
+    let maxValidOffset = maxOffset;
+    if (windowKey === "week" || windowKey === "month") {
+      maxValidOffset = Math.floor(maxOffset / 24) * 24;
+      safeOffset = Math.round(safeOffset / 24) * 24;
+      safeOffset = clamp(safeOffset, 0, maxValidOffset);
+    }
     selectedStart = startTime + safeOffset * hourMs;
     const selectedEnd = selectedStart + durationMs;
     selectedRangeEnd = Math.max(selectedStart, Math.min(selectedEnd - hourMs, endTime));
-    isTimelineAtEnd = windowKey === "all" || safeOffset >= maxOffset;
+    isTimelineAtEnd = windowKey === "all" || safeOffset >= maxValidOffset;
     actualEndLimit = selectedEnd;
   }
 
@@ -858,7 +867,14 @@ function timeOffsetForStart(
       : windowOption.durationHours * hourMs;
   const maxOffset = Math.max(0, Math.ceil((endTime - startTime - durationMs) / hourMs));
 
-  return clamp(Math.round((selectedStartTime - startTime) / hourMs), 0, maxOffset);
+  const rawOffset = Math.round((selectedStartTime - startTime) / hourMs);
+  let offset = rawOffset;
+  let maxValidOffset = maxOffset;
+  if (windowKey === "week" || windowKey === "month") {
+    maxValidOffset = Math.floor(maxOffset / 24) * 24;
+    offset = Math.round(rawOffset / 24) * 24;
+  }
+  return clamp(offset, 0, maxValidOffset);
 }
 
 function aggregateRecursivePredictionSeries(
@@ -1330,7 +1346,7 @@ export function SelectionSummary({
     onPredictionLoadingChange(true);
 
     try {
-      const isTimelineAtEnd = timeOffset >= timeChart.maxOffset;
+      const isTimelineAtEnd = timeChart.isTimelineAtEnd;
       const hourMs = 60 * 60 * 1000;
       const durationMs =
         timeWindow === "day"
