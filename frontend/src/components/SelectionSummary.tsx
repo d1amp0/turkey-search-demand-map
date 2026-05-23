@@ -742,8 +742,12 @@ function aggregateTimeSeries(
     const sorted = [...data].sort((left, right) =>
       left.timestamp.localeCompare(right.timestamp),
     );
-    const startTime = new Date(sorted[0].timestamp).getTime();
-    const endTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
+    const startDate = new Date(sorted[0].timestamp);
+    startDate.setHours(0, 0, 0, 0);
+    const startTime = startDate.getTime();
+    const endDate = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp);
+    endDate.setHours(23, 59, 59, 999);
+    const endTime = endDate.getTime();
     durationMs =
       windowOption.durationHours === null
         ? Math.max(endTime - startTime + hourMs, hourMs)
@@ -858,8 +862,12 @@ function timeOffsetForStart(
   );
   const windowOption =
     timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[0];
-  const startTime = new Date(sorted[0].timestamp).getTime();
-  const endTime = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp).getTime();
+  const startDate = new Date(sorted[0].timestamp);
+  startDate.setHours(0, 0, 0, 0);
+  const startTime = startDate.getTime();
+  const endDate = new Date(sorted.at(-1)?.timestamp ?? sorted[0].timestamp);
+  endDate.setHours(23, 59, 59, 999);
+  const endTime = endDate.getTime();
   const hourMs = 60 * 60 * 1000;
   const durationMs =
     windowOption.durationHours === null
