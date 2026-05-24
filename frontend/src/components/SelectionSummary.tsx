@@ -188,10 +188,12 @@ function MiniLineChart({
   isExpanded,
   language,
   series,
+  windowKey,
 }: {
   isExpanded: boolean;
   language: Language;
   series: LineChartSeries[];
+  windowKey: TimeWindowKey;
 }) {
   const t = translations[language];
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -347,12 +349,58 @@ function MiniLineChart({
     };
   }, [isExpanded, series]);
 
+  const xLabels = useMemo(() => {
+    const coords = chart.hoverCoordinates;
+    const len = coords.length;
+    if (len === 0) {
+      return [];
+    }
+    if (len === 1) {
+      return [{ x: coords[0].x, label: coords[0].label, anchor: "middle" as const, isGridLine: false }];
+    }
+
+    const step = len <= 12 ? 1 : len <= 24 ? 2 : len <= 31 ? 5 : Math.ceil(len / 6);
+    const indices: number[] = [];
+    for (let i = 0; i < len; i += step) {
+      indices.push(i);
+    }
+    if (indices[indices.length - 1] !== len - 1) {
+      if (len - 1 - indices[indices.length - 1] < step * 0.7) {
+        indices[indices.length - 1] = len - 1;
+      } else {
+        indices.push(len - 1);
+      }
+    }
+
+    const axisLabelFormatter = new Intl.DateTimeFormat(language === "tr" ? "tr-TR" : "en-US", {
+      hour: windowKey === "day" ? "2-digit" : undefined,
+      minute: windowKey === "day" ? "2-digit" : undefined,
+      hourCycle: "h23",
+      day: windowKey !== "day" ? "2-digit" : undefined,
+      month: windowKey !== "day" ? "short" : undefined,
+      year: windowKey === "all" ? "2-digit" : undefined,
+    });
+
+    return indices.map((idx, i) => {
+      let anchor: "start" | "middle" | "end" = "middle";
+      if (i === 0) {
+        anchor = "start";
+      } else if (i === indices.length - 1) {
+        anchor = "end";
+      }
+      return {
+        x: coords[idx].x,
+        label: axisLabelFormatter.format(new Date(coords[idx].time)),
+        anchor,
+        isGridLine: idx > 0 && idx < len - 1,
+      };
+    });
+  }, [chart.hoverCoordinates, windowKey, language]);
+
   if (!series.some((item) => item.data.length)) {
     return <p className="chart-empty">{t.noRequests}</p>;
   }
 
-  const firstLabel = chart.coordinates[0]?.label ?? "";
-  const lastLabel = chart.coordinates.at(-1)?.label ?? "";
   const yTicks = getYAxisTicks(chart.max);
   const hoveredPoint = hoveredIndex === null ? null : chart.hoverCoordinates[hoveredIndex];
   const hasPredictionLine = chart.predictionCoordinates.length > 0;
@@ -531,20 +579,40 @@ function MiniLineChart({
             ))}
           </>
         ) : null}
-        <text
-          className="chart-x-label"
-          x={chart.padding.left}
-          y={chart.height - 8}
-        >
-          {firstLabel}
-        </text>
-        <text
-          className="chart-x-label end"
-          x={chart.padding.left + chart.plotWidth}
-          y={chart.height - 8}
-        >
-          {lastLabel}
-        </text>
+        {/* Render a tick mark for every coordinate */}
+        {chart.hoverCoordinates.map((item, index) => (
+          <line
+            className="chart-axis"
+            key={`tick-${index}`}
+            x1={item.x}
+            x2={item.x}
+            y1={chart.padding.top + chart.plotHeight}
+            y2={chart.padding.top + chart.plotHeight + 4}
+          />
+        ))}
+
+        {/* Render dashed gridlines and text labels at spaced intervals */}
+        {xLabels.map((item, index) => (
+          <g key={`label-${index}`}>
+            {item.isGridLine && (
+              <line
+                className="chart-grid-line"
+                x1={item.x}
+                x2={item.x}
+                y1={chart.padding.top}
+                y2={chart.padding.top + chart.plotHeight}
+              />
+            )}
+            <text
+              className={`chart-x-label${item.anchor === "end" ? " end" : ""}`}
+              textAnchor={item.anchor}
+              x={item.x}
+              y={chart.height - 8}
+            >
+              {item.label}
+            </text>
+          </g>
+        ))}
       </svg>
       <div className="line-chart-legend">
         {chart.chartSeries.map((item) => (
@@ -640,10 +708,7 @@ function TimeWindowSlider({
   onChange: (value: number) => void;
 }) {
   const t = translations[language];
-  const windowOption =
-    timeWindowOptions.find((option) => option.key === windowKey) ?? timeWindowOptions[1];
-  const durationHours = windowOption.durationHours ?? 24 * 30;
-  const handleWidthPercent = clamp((durationHours / (24 * 30)) * 100, 10, 42);
+  const handleWidthPercent = windowKey === "month" ? 23.3 : 10;
   const isDaily = windowKey === "week" || windowKey === "month";
   const step = isDaily ? 24 : 1;
   const sliderMax = isDaily ? Math.floor(max / 24) * 24 : max;
@@ -652,6 +717,16 @@ function TimeWindowSlider({
 
   return (
     <div className="time-window-control">
+      <div className="time-window-legend" style={{ display: "flex", gap: "12px", marginBottom: "6px", fontSize: "11px", color: "var(--muted-text)" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <i style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#db2777" }} />
+          <span>{t.train}</span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <i style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#16a34a" }} />
+          <span>{t.used}</span>
+        </span>
+      </div>
       <label className="time-window-track">
         <div
           className="time-window-line"
@@ -1357,6 +1432,7 @@ export function SelectionSummary({
   const canPredict = Boolean(
     selection?.provinceNumber &&
     timeWindow !== "all" &&
+    timeWindow !== "month" &&
     isProvinceAllowed &&
     timeChart.points.length > 0
   );
@@ -1955,6 +2031,7 @@ export function SelectionSummary({
             <MiniLineChart
               isExpanded={isExpanded}
               language={language}
+              windowKey={timeWindow}
               series={chartDataItems.map((item, index) => {
                 const itemTimeChart = aggregateTimeSeries(
                   item.data?.time_series ?? [],
