@@ -11,15 +11,12 @@ from cli.hf import hf_token_kwargs
 
 # Hy-MT2 models are instruction-following causal LMs, not seq2seq Marian models.
 TRANSLATION_MODEL = "tencent/Hy-MT2-1.8B"
-TURKISH_CHARS = frozenset("ğüşıöçĞÜŞİÖÇ")
 TRANSLATION_PROMPT = (
-    "Translate the following text from Turkish into English. "
-    "Note that you should only output the translated result without any additional explanation:\n\n{text}"
+    "Translate the following Turkish place/category label into natural English. "
+    "Translate Turkish words written with plain Latin letters and cognates too. "
+    "If the label is already English, return it unchanged. "
+    "Output only the translated result without any additional explanation:\n\n{text}"
 )
-
-
-def looks_turkish(text: str) -> bool:
-    return any(char in TURKISH_CHARS for char in text)
 
 
 def load_translator(
@@ -80,7 +77,7 @@ def translate_org_types(
     device: str,
     model_name: str = TRANSLATION_MODEL,
 ) -> dict[str, str]:
-    """Return mapping original org_type -> English (pass-through if not Turkish)."""
+    """Return mapping original org_type -> English."""
     tokenizer, model = load_translator(device, model_name)
     result: dict[str, str] = {}
 
@@ -90,26 +87,15 @@ def translate_org_types(
         unit="batch",
     ):
         batch = org_types[start : start + batch_size]
-        to_translate: list[str] = []
-        to_translate_idx: list[int] = []
-        batch_out: list[str | None] = [None] * len(batch)
+        translated = [
+            text.strip()
+            for text in translate_batch(batch, tokenizer, model, device)
+        ]
 
-        for i, text in enumerate(batch):
-            if looks_turkish(text):
-                to_translate.append(text)
-                to_translate_idx.append(i)
-            else:
-                batch_out[i] = text
+        if len(translated) != len(batch) or any(not text for text in translated):
+            die("Translation batch returned an empty or incomplete result.")
 
-        if to_translate:
-            mt_out = translate_batch(to_translate, tokenizer, model, device)
-            for i, en in zip(to_translate_idx, mt_out):
-                batch_out[i] = en.strip()
-
-        if any(item is None for item in batch_out):
-            die("Translation batch left some strings untranslated.")
-
-        for original, english in zip(batch, batch_out):
-            result[original] = english  # type: ignore[index]
+        for original, english in zip(batch, translated):
+            result[original] = english
 
     return result

@@ -76,7 +76,7 @@ Stages (in order):
 4. Translation + categorization — `org_type_en` and `category` on `data/df_with_cat.csv`
 5. Province split — `data/provinces/{number}.csv` with `org_name`, `time`, `category`, `org_rating`
 
-Query cleanup is **skipped** unless you opt in (see below). See `python -m cli.run_map --help` for all flags (`--device cuda`, `--provinces-dir`, etc.).
+Query cleanup is **skipped** unless you opt in (see below). See `python -m cli.run_map --help` for all flags (`--regions-dir`, `--exclude-queries`, etc.).
 
 **Translation model:** the pipeline uses [Helsinki-NLP/opus-mt-tr-en](https://huggingface.co/Helsinki-NLP/opus-mt-tr-en) as a **free, local example** — it is not the best Turkish→English option. Replace it in `cli/translate.py` if you need higher quality (e.g. a larger Marian/NLLB model or a paid API). Categorization uses [BAAI/bge-large-en-v1.5](https://huggingface.co/BAAI/bge-large-en-v1.5) on the translated labels.
 
