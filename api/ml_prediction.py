@@ -184,6 +184,8 @@ def _rolling_mean(values: list[float], window: int, offset:int) -> float:
         window_values = values[-window:]
     else:
         window_values = values[-window - offset:-offset]
+    if len(window_values) == 0:
+        return 0
     return float(sum(window_values) / len(window_values))
 
 
