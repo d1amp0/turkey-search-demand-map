@@ -376,7 +376,7 @@ def _features_from_counts(
     counts: list[float],
     current_hour: pd.Timestamp,
 ) -> dict[str, Any]:
-    target_hour = current_hour + pd.Timedelta(hour=1)
+    target_hour = current_hour + pd.Timedelta(hours=1)
     day_of_week = int(target_hour.dayofweek)
 
     return {
@@ -405,7 +405,7 @@ def _category_features_from_counts(
     category: str,
     feature_columns: list[str],
 ) -> dict[str, Any]:
-    target_hour = current_hour + pd.Timedelta(hour=1)
+    target_hour = current_hour + pd.Timedelta(hours=1)
     day_of_week = int(target_hour.dayofweek)
     category_column = f"category_{category}"
 
