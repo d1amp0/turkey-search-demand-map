@@ -17,7 +17,6 @@ from api.settings import MODELS_DIR
 
 
 FEATURE_COLUMNS = [
-    "count",
     "hour_sin",
     "hour_cos",
     "lag_1",
@@ -178,11 +177,13 @@ def _count_at(values: list[float], offset: int) -> float:
     return float(values[index])
 
 
-def _rolling_mean(values: list[float], window: int) -> float:
+def _rolling_mean(values: list[float], window: int, offset:int) -> float:
     if not values:
         return 0
-
-    window_values = values[-window:]
+    if offset == 0:
+        window_values = values[-window:]
+    else:
+        window_values = values[-window - offset:-offset]
     return float(sum(window_values) / len(window_values))
 
 
@@ -348,15 +349,14 @@ def _features_from_history(
     day_of_week = int(current_hour.dayofweek)
 
     features = {
-        "count": _count_at(counts, 1),
-        "hour_sin": sin(2 * pi * current_hour.hour / 24),
-        "hour_cos": cos(2 * pi * current_hour.hour / 24),
-        "lag_1": _count_at(counts, 2),
-        "lag_2": _count_at(counts, 3),
-        "lag_24": _count_at(counts, 25),
-        "rolling_mean_3": _rolling_mean(previous_counts, 3),
-        "rolling_mean_6": _rolling_mean(previous_counts, 6),
-        "rolling_mean_24": _rolling_mean(previous_counts, 24),
+        "hour_sin": sin(2 * pi * target_hour.hour / 24),
+        "hour_cos": cos(2 * pi * target_hour.hour / 24),
+        "lag_1": _count_at(counts, 1),
+        "lag_2": _count_at(counts, 2),
+        "lag_24": _count_at(counts, 24),
+        "rolling_mean_3": _rolling_mean(previous_counts, 3, 1),
+        "rolling_mean_6": _rolling_mean(previous_counts, 6, 1),
+        "rolling_mean_24": _rolling_mean(previous_counts, 24, 1),
         "is_weekend": int(day_of_week >= 5),
         "day_of_week_0": int(day_of_week == 0),
         "day_of_week_1": int(day_of_week == 1),
@@ -374,19 +374,17 @@ def _features_from_counts(
     counts: list[float],
     current_hour: pd.Timestamp,
 ) -> dict[str, Any]:
-    previous_counts = counts[:-1]
     day_of_week = int(current_hour.dayofweek)
 
     return {
-        "count": _count_at(counts, 1),
         "hour_sin": sin(2 * pi * current_hour.hour / 24),
         "hour_cos": cos(2 * pi * current_hour.hour / 24),
-        "lag_1": _count_at(counts, 2),
-        "lag_2": _count_at(counts, 3),
-        "lag_24": _count_at(counts, 25),
-        "rolling_mean_3": _rolling_mean(previous_counts, 3),
-        "rolling_mean_6": _rolling_mean(previous_counts, 6),
-        "rolling_mean_24": _rolling_mean(previous_counts, 24),
+        "lag_1": _count_at(counts, 1),
+        "lag_2": _count_at(counts, 2),
+        "lag_24": _count_at(counts, 24),
+        "rolling_mean_3": _rolling_mean(counts, 3, 1),
+        "rolling_mean_6": _rolling_mean(counts, 6, 1),
+        "rolling_mean_24": _rolling_mean(counts, 24, 1),
         "is_weekend": int(day_of_week >= 5),
         "day_of_week_0": int(day_of_week == 0),
         "day_of_week_1": int(day_of_week == 1),
@@ -414,9 +412,14 @@ def _category_features_from_counts(
         )
 
     features = {
-        "count": _count_at(counts, 1),
         "hour_sin": sin(2 * pi * current_hour.hour / 24),
         "hour_cos": cos(2 * pi * current_hour.hour / 24),
+        "lag_1": _count_at(counts, 1),
+        "lag_2": _count_at(counts, 2),
+        "lag_24": _count_at(counts, 24),
+        "rolling_mean_3": _rolling_mean(counts, 3, 1),
+        "rolling_mean_6": _rolling_mean(counts, 6, 1),
+        "rolling_mean_24": _rolling_mean(counts, 24, 1),
         "is_weekend": int(day_of_week >= 5),
         "day_of_week_0": int(day_of_week == 0),
         "day_of_week_1": int(day_of_week == 1),
