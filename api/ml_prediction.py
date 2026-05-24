@@ -184,6 +184,8 @@ def _rolling_mean(values: list[float], window: int, offset:int) -> float:
         window_values = values[-window:]
     else:
         window_values = values[-window - offset:-offset]
+    if len(window_values) == 0:
+        return 0
     return float(sum(window_values) / len(window_values))
 
 
@@ -346,7 +348,7 @@ def _features_from_history(
 
     counts = [float(value) for value in history["count"].tolist()]
     previous_counts = counts[:-1]
-    day_of_week = int(current_hour.dayofweek)
+    day_of_week = int(target_hour.dayofweek)
 
     features = {
         "hour_sin": sin(2 * pi * target_hour.hour / 24),
@@ -374,11 +376,12 @@ def _features_from_counts(
     counts: list[float],
     current_hour: pd.Timestamp,
 ) -> dict[str, Any]:
-    day_of_week = int(current_hour.dayofweek)
+    target_hour = current_hour + pd.Timedelta(hour=1)
+    day_of_week = int(target_hour.dayofweek)
 
     return {
-        "hour_sin": sin(2 * pi * current_hour.hour / 24),
-        "hour_cos": cos(2 * pi * current_hour.hour / 24),
+        "hour_sin": sin(2 * pi * target_hour.hour / 24),
+        "hour_cos": cos(2 * pi * target_hour.hour / 24),
         "lag_1": _count_at(counts, 1),
         "lag_2": _count_at(counts, 2),
         "lag_24": _count_at(counts, 24),
@@ -402,7 +405,8 @@ def _category_features_from_counts(
     category: str,
     feature_columns: list[str],
 ) -> dict[str, Any]:
-    day_of_week = int(current_hour.dayofweek)
+    target_hour = current_hour + pd.Timedelta(hour=1)
+    day_of_week = int(target_hour.dayofweek)
     category_column = f"category_{category}"
 
     if category_column not in feature_columns:
@@ -412,8 +416,8 @@ def _category_features_from_counts(
         )
 
     features = {
-        "hour_sin": sin(2 * pi * current_hour.hour / 24),
-        "hour_cos": cos(2 * pi * current_hour.hour / 24),
+        "hour_sin": sin(2 * pi * target_hour.hour / 24),
+        "hour_cos": cos(2 * pi * target_hour.hour / 24),
         "lag_1": _count_at(counts, 1),
         "lag_2": _count_at(counts, 2),
         "lag_24": _count_at(counts, 24),
